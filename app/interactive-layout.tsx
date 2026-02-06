@@ -87,8 +87,8 @@ export function InteractiveLayout({
   return (
     <main className="min-h-screen bg-[#FAFAFA]">
       <div className="px-8 py-16 sm:py-24 lg:max-w-[50vw]">
-        {/* Left column — always here, right half reserved for fixed terminal */}
-        <div className="max-w-[480px] mx-auto lg:ml-[max(2rem,calc((50vw-480px)/2))] lg:mr-auto">
+        {/* Left column — centered within left half */}
+        <div className="max-w-[480px] mx-auto lg:mx-auto">
           {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
@@ -238,7 +238,7 @@ export function InteractiveLayout({
       </div>
 
       {/* Terminal — fixed and centered on right half of screen */}
-      <div className="hidden lg:block fixed left-[52%] top-1/2 -translate-y-1/2 w-[calc(48vw-3rem)] h-[80vh]">
+      <div className="hidden lg:block fixed left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]">
         <Terminal activeFile={activeFile} />
       </div>
     </main>

@@ -57,12 +57,9 @@ function getTerminalFile(
 }
 
 /* Skeuomorphic ghost card */
-/* G2: Pressed Inset — physical button feel, hover raises, active presses in */
-function cardClasses(isActive: boolean) {
-  if (isActive) {
-    return "w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 bg-[#EEEEF0] border border-gray-200/60 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.08),inset_-1px_-1px_3px_rgba(255,255,255,0.7)]";
-  }
-  return "w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent hover:bg-white hover:border-gray-200/70 hover:shadow-[0_4px_12px_rgba(0,0,0,0.07),0_1px_3px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,1)] hover:-translate-y-px active:translate-y-0 active:bg-[#EEEEF0] active:border-gray-200/60 active:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.08),inset_-1px_-1px_3px_rgba(255,255,255,0.7)]";
+/* G2: Pressed Inset — hover presses in, no persistent click state */
+function cardClasses(_isActive: boolean) {
+  return "w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent hover:bg-[#EEEEF0] hover:border-gray-200/60 hover:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.08),inset_-1px_-1px_3px_rgba(255,255,255,0.7)] active:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.1),inset_-1px_-1px_3px_rgba(255,255,255,0.6)]";
 }
 
 export function InteractiveLayout({
@@ -89,9 +86,9 @@ export function InteractiveLayout({
 
   return (
     <main className="min-h-screen bg-[#FAFAFA]">
-      <div className="max-w-[1200px] mx-auto px-8 py-16 sm:py-24 lg:flex lg:gap-12 lg:items-start lg:justify-center">
-        {/* Left column — always here */}
-        <div className="lg:w-[480px] lg:shrink-0">
+      <div className="px-8 py-16 sm:py-24 lg:max-w-[50vw]">
+        {/* Left column — always here, right half reserved for fixed terminal */}
+        <div className="max-w-[480px] mx-auto lg:ml-[max(2rem,calc((50vw-480px)/2))] lg:mr-auto">
           {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
@@ -238,10 +235,11 @@ export function InteractiveLayout({
           </footer>
         </div>
 
-        {/* Right column — terminal, always visible on desktop */}
-        <div className="hidden lg:block flex-1 min-w-0 sticky top-8 h-[calc(100vh-4rem)] self-start">
-          <Terminal activeFile={activeFile} />
-        </div>
+      </div>
+
+      {/* Terminal — fixed and centered on right half of screen */}
+      <div className="hidden lg:flex fixed right-8 top-1/2 -translate-y-1/2 w-[min(480px,calc(50vw-280px))] h-[min(520px,70vh)]">
+        <Terminal activeFile={activeFile} />
       </div>
     </main>
   );

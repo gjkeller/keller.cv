@@ -238,7 +238,7 @@ export function InteractiveLayout({
       </div>
 
       {/* Terminal — fixed and centered on right half of screen */}
-      <div className="hidden lg:flex fixed right-8 top-1/2 -translate-y-1/2 w-[min(480px,calc(50vw-280px))] h-[min(520px,70vh)]">
+      <div className="hidden lg:flex fixed left-[52%] top-1/2 -translate-y-1/2 w-[min(520px,calc(48vw-3rem))] h-[min(600px,80vh)]">
         <Terminal activeFile={activeFile} />
       </div>
     </main>

@@ -296,8 +296,8 @@ export function Terminal({ activeFile }: TerminalProps) {
         {/* History */}
         {history.map((entry, i) => (
           <div key={i} className="mb-4">
-            <div className="flex items-center gap-1.5">
-              <span className="text-green-600 font-medium">$</span>
+            <div>
+              <span className="text-green-600 font-medium">$ </span>
               <span className="text-gray-800">{entry.command}</span>
             </div>
             {entry.output && <div className="mt-1">{renderLine(entry.output)}</div>}
@@ -307,12 +307,12 @@ export function Terminal({ activeFile }: TerminalProps) {
         {/* Auto-typing in progress */}
         {isAutoTyping && (
           <div className="mb-4">
-            <div className="flex items-center gap-1.5">
-              <span className="text-green-600 font-medium">$</span>
+            <div>
+              <span className="text-green-600 font-medium">$ </span>
               <span className="text-gray-800">
                 {autoPhase === "typing-cmd" ? cmdTyper.displayed : autoCommand}
-                {autoPhase === "typing-cmd" && <span className="inline-block w-[7px] h-[14px] bg-gray-800 ml-px animate-pulse" />}
               </span>
+              {autoPhase === "typing-cmd" && <span className="inline-block w-[7px] h-[14px] bg-gray-800 align-middle animate-pulse" />}
             </div>
             {autoPhase === "typing-output" && (
               <div className="mt-1">{renderLine(outputTyper.displayed)}</div>
@@ -322,10 +322,10 @@ export function Terminal({ activeFile }: TerminalProps) {
 
         {/* Interactive prompt (shown when not auto-typing) */}
         {!isAutoTyping && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-green-600 font-medium">$</span>
+          <div>
+            <span className="text-green-600 font-medium">$ </span>
             <span className="text-gray-800">{inputValue}</span>
-            <span className="inline-block w-[7px] h-[14px] bg-gray-800 animate-pulse" />
+            <span className="inline-block w-[7px] h-[14px] bg-gray-800 align-middle animate-pulse" />
           </div>
         )}
       </div>

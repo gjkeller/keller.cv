@@ -244,17 +244,38 @@ export function Terminal({ activeFile }: TerminalProps) {
   // Focus input when clicking terminal body
   const focusInput = () => inputRef.current?.focus();
 
+  const linkify = useCallback((text: string) => {
+    const urlRegex = /(https?:\/\/[^\s)]+)/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, j) =>
+      urlRegex.test(part) ? (
+        <a
+          key={j}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+        >
+          {part}
+        </a>
+      ) : (
+        <span key={j}>{part}</span>
+      )
+    );
+  }, []);
+
   const renderLine = useCallback((text: string) => {
     return text.split("\n").map((line, i) => {
-      if (line.startsWith("# ")) return <div key={i} className="text-gray-900 font-semibold text-sm">{line.slice(2)}</div>;
-      if (line.startsWith("## ")) return <div key={i} className="text-gray-800 font-medium text-sm mt-3">{line.slice(3)}</div>;
-      if (line.startsWith("**") && line.endsWith("**")) return <div key={i} className="text-gray-800 font-medium text-[13px]">{line.slice(2, -2)}</div>;
-      if (line.trimStart().startsWith("→")) return <div key={i} className="text-gray-600 text-[13px]">{line}</div>;
-      if (line.trimStart().startsWith("-") || line.trimStart().startsWith("•")) return <div key={i} className="text-gray-600 text-[13px]">{line}</div>;
+      if (line.startsWith("# ")) return <div key={i} className="text-gray-900 font-semibold text-sm">{linkify(line.slice(2))}</div>;
+      if (line.startsWith("## ")) return <div key={i} className="text-gray-800 font-medium text-sm mt-3">{linkify(line.slice(3))}</div>;
+      if (line.startsWith("**") && line.endsWith("**")) return <div key={i} className="text-gray-800 font-medium text-[13px]">{linkify(line.slice(2, -2))}</div>;
+      if (line.trimStart().startsWith("→")) return <div key={i} className="text-gray-600 text-[13px]">{linkify(line)}</div>;
+      if (line.trimStart().startsWith("-") || line.trimStart().startsWith("•")) return <div key={i} className="text-gray-600 text-[13px]">{linkify(line)}</div>;
       if (line.trim() === "") return <div key={i} className="h-2" />;
-      return <div key={i} className="text-gray-600 text-[13px] leading-relaxed">{line}</div>;
+      return <div key={i} className="text-gray-600 text-[13px] leading-relaxed">{linkify(line)}</div>;
     });
-  }, []);
+  }, [linkify]);
 
   const isAutoTyping = autoPhase !== "idle";
 

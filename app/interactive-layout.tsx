@@ -57,11 +57,12 @@ function getTerminalFile(
 }
 
 /* Skeuomorphic ghost card */
+/* G2: Pressed Inset — physical button feel, hover raises, active presses in */
 function cardClasses(isActive: boolean) {
   if (isActive) {
-    return "w-full text-left -mx-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 bg-white border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] scale-[1.01]";
+    return "w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 bg-[#EEEEF0] border border-gray-200/60 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.08),inset_-1px_-1px_3px_rgba(255,255,255,0.7)]";
   }
-  return "w-full text-left -mx-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 border border-transparent hover:bg-white hover:border-gray-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] hover:scale-[1.008] active:scale-[0.997] active:shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_2px_4px_rgba(0,0,0,0.04)]";
+  return "w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent hover:bg-white hover:border-gray-200/70 hover:shadow-[0_4px_12px_rgba(0,0,0,0.07),0_1px_3px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,1)] hover:-translate-y-px active:translate-y-0 active:bg-[#EEEEF0] active:border-gray-200/60 active:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.08),inset_-1px_-1px_3px_rgba(255,255,255,0.7)]";
 }
 
 export function InteractiveLayout({

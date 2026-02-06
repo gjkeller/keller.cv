@@ -29,6 +29,31 @@ with Minecraft plugins and have been hooked ever since.
 
 I care about building tools that make developers more productive
 and AI systems that actually work in production.`,
+
+  ".secret": `
+    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣶⣦⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⡿⠛⠉⠙⠛⠛⠛⠛⠻⢿⣿⣷⣤⡀⠀⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠋⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⠈⢻⣿⣿⡄⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⣸⣿⡏⠀⠀⠀⣠⣶⣾⣿⣿⣿⠿⠿⠿⢿⣿⣿⣿⣄⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⣿⣿⠁⠀⠀⢰⣿⣿⣯⠁⠀⠀⠀⠀⠀⠀⠀⠈⠙⢿⣷⡄⠀
+    ⠀⠀⣀⣤⣴⣶⣶⣿⡟⠀⠀⠀⢸⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣷⠀
+    ⠀⢰⣿⡟⠋⠉⣹⣿⡇⠀⠀⠀⠘⣿⣿⣿⣿⣷⣦⣤⣤⣤⣶⣶⣶⣶⣿⣿⣿⠀
+    ⠀⢸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃⠀
+    ⠀⣸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠉⠻⠿⣿⣿⣿⣿⡿⠿⠿⠛⢻⣿⡇⠀⠀
+    ⠀⣿⣿⠁⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣧⠀⠀
+    ⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⠀⠀
+    ⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⠀⠀
+    ⠀⢿⣿⡆⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⡇⠀⠀
+    ⠀⠸⣿⣧⡀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠃⠀⠀
+    ⠀⠀⠛⢿⣿⣿⣿⣿⣇⠀⠀⠀⠀⠀⣰⣿⣿⣷⣶⣶⣶⣶⠶⠀⢠⣿⣿⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⣽⣿⡏⠁⠀⠀⢸⣿⡇⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⢹⣿⡆⠀⠀⠀⣸⣿⠇⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⢿⣿⣦⣄⣀⣠⣴⣿⣿⠁⠀⠈⠻⣿⣿⣿⣿⡿⠏⠀⠀⠀⠀
+    ⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⠿⠿⠿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+
+You found it. Nice.
+
+https://bit.ly/3Qv0kEf`,
 };
 
 const DIRECTORIES: Record<string, string[]> = {
@@ -40,16 +65,17 @@ const DIRECTORIES: Record<string, string[]> = {
 function buildFileSystem(activeFiles: Record<string, string>) {
   const fs = { ...FILES, ...activeFiles };
   const dirs = { ...DIRECTORIES };
-  // Populate project/ and blog/ directories from dynamic files
+  const rootFiles: string[] = ["welcome.md", "about.md"];
   const projFiles: string[] = [];
   const blogFiles: string[] = [];
   for (const key of Object.keys(activeFiles)) {
     if (key.startsWith("projects/")) projFiles.push(key.replace("projects/", ""));
     else if (key.startsWith("blog/")) blogFiles.push(key.replace("blog/", ""));
+    else rootFiles.push(key);
   }
   dirs["projects"] = projFiles;
   dirs["blog"] = blogFiles;
-  dirs["~"] = ["welcome.md", "about.md", ...(projFiles.length ? ["projects/"] : []), ...(blogFiles.length ? ["blog/"] : [])];
+  dirs["~"] = [...rootFiles, ...(projFiles.length ? ["projects/"] : []), ...(blogFiles.length ? ["blog/"] : [])];
   return { fs, dirs };
 }
 
@@ -57,6 +83,7 @@ const HELP_TEXT = `Available commands:
 
   help          Show this help message
   ls [dir]      List files in directory
+  ll [dir]      Alias for ls
   cat <file>    Read a file
   pwd           Print working directory
   whoami        Who am I?
@@ -135,6 +162,7 @@ export function Terminal({ activeFile }: TerminalProps) {
         return "/Users/gabe/keller.cv";
       case "whoami":
         return "gabe";
+      case "ll":
       case "ls": {
         const dir = arg || "~";
         const entries = dirs[dir] || dirs[dir.replace("/", "")];

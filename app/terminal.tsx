@@ -280,7 +280,7 @@ export function Terminal({ activeFile }: TerminalProps) {
   const isAutoTyping = autoPhase !== "idle";
 
   return (
-    <div className="h-full flex flex-col bg-[#FAFAFA] rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.8)] overflow-hidden" onClick={focusInput}>
+    <div className="w-full h-full flex flex-col bg-[#FAFAFA] rounded-xl border border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.8)] overflow-hidden" onClick={focusInput}>
       {/* Title bar */}
       <div className="flex items-center gap-2 px-4 py-2.5 bg-[#F0F0F0] border-b border-gray-200 select-none">
         <div className="flex gap-1.5">

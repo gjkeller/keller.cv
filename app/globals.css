@@ -9,8 +9,17 @@
 }
 
 body {
-  background-color: #ffffff;
+  background-color: #FAFAFA;
   color: #374151;
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   min-height: 100vh;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-pulse {
+  animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

@@ -88,9 +88,9 @@ export function InteractiveLayout({
 
   return (
     <main className="min-h-screen bg-[#FAFAFA]">
-      <div className="max-w-5xl mx-auto px-6 py-16 sm:py-24 lg:flex lg:gap-10 lg:items-start lg:justify-center">
+      <div className="max-w-[1200px] mx-auto px-8 py-16 sm:py-24 lg:flex lg:gap-12 lg:items-start lg:justify-center">
         {/* Left column — always here */}
-        <div className="lg:w-[440px] lg:shrink-0">
+        <div className="lg:w-[480px] lg:shrink-0">
           {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
@@ -238,7 +238,7 @@ export function InteractiveLayout({
         </div>
 
         {/* Right column — terminal, always visible on desktop */}
-        <div className="hidden lg:block w-[480px] shrink-0 sticky top-8 h-[calc(100vh-4rem)] self-start">
+        <div className="hidden lg:block flex-1 min-w-0 sticky top-8 h-[calc(100vh-4rem)] self-start">
           <Terminal activeFile={activeFile} />
         </div>
       </div>

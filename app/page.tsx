@@ -6,70 +6,54 @@ export default function Home() {
   const posts = getBlogPosts().slice(0, 3);
 
   return (
-    <main className="min-h-screen py-12 sm:py-20 px-4">
-      <div className="max-w-xl mx-auto space-y-4">
-        {/* Hero Card */}
-        <section className="bg-white rounded-xl border border-gray-200 p-8">
+    <main className="min-h-screen bg-white">
+      <div className="max-w-xl mx-auto px-6 py-20 sm:py-28">
+        {/* Header */}
+        <header>
           <h1 className="text-2xl font-semibold text-gray-900">
             {siteData.name}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">{siteData.tagline}</p>
-          <p className="text-base text-gray-600 mt-4 leading-relaxed">
+          <p className="text-sm text-gray-500 mt-1.5">{siteData.tagline}</p>
+          <p className="text-[15px] text-gray-600 mt-6 leading-relaxed">
             {siteData.bio}
           </p>
-          <div className="flex items-center flex-wrap gap-3 mt-5">
-            {siteData.socialLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-        </section>
+        </header>
 
-        {/* Currently Card */}
-        <section className="bg-white rounded-xl border border-gray-200 p-8">
+        <hr className="border-gray-200 my-10" />
+
+        {/* Currently */}
+        <section>
           <h2 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-5">
             Currently
           </h2>
-          <div className="space-y-0">
-            {currentWork.map((item, i) => (
-              <div key={item.company}>
-                <div className="py-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
-                      >
-                        {item.company}
-                      </a>
-                      <span className="text-gray-400 text-sm ml-2">
-                        {item.role}
-                      </span>
-                    </div>
-                  </div>
+          <div className="space-y-4">
+            {currentWork.map((item) => (
+              <div key={item.company} className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-gray-900 hover:text-blue-600 transition-colors text-[15px]"
+                  >
+                    {item.company}
+                  </a>
                   <p className="text-sm text-gray-500 mt-0.5">
                     {item.description}
                   </p>
                 </div>
-                {i < currentWork.length - 1 && (
-                  <div className="border-t border-gray-100" />
-                )}
+                <span className="text-xs text-gray-400 shrink-0 mt-1">
+                  {item.role}
+                </span>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Writing Card */}
-        <section className="bg-white rounded-xl border border-gray-200 p-8">
+        <hr className="border-gray-200 my-10" />
+
+        {/* Writing */}
+        <section>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-medium uppercase tracking-wider text-gray-400">
               Writing
@@ -89,7 +73,7 @@ export default function Home() {
                   href={`/blog/${post.slug}`}
                   className="flex items-baseline justify-between gap-4 group"
                 >
-                  <span className="text-gray-900 group-hover:text-blue-600 transition-colors text-sm font-medium">
+                  <span className="text-gray-900 group-hover:text-blue-600 transition-colors text-[15px] font-medium">
                     {post.title}
                   </span>
                   <span className="text-gray-400 text-xs shrink-0 tabular-nums">
@@ -106,20 +90,19 @@ export default function Home() {
           )}
         </section>
 
-        {/* Connect Card */}
-        <section className="bg-white rounded-xl border border-gray-200 p-8">
-          <h2 className="text-base font-semibold text-gray-900 mb-1">
-            Want to chat?
-          </h2>
-          <p className="text-sm text-gray-500 mb-5">
-            I&apos;m always happy to grab a coffee or jump on a quick call.
+        <hr className="border-gray-200 my-10" />
+
+        {/* Connect */}
+        <section>
+          <p className="text-[15px] text-gray-600 mb-4">
+            Always happy to grab a coffee or jump on a quick call.
           </p>
-          <div className="flex items-center flex-wrap gap-4">
+          <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-sm">
             <a
               href={`mailto:${siteData.email}`}
-              className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+              className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
             >
-              Book a chat &rarr;
+              Grab a coffee &rarr;
             </a>
             {siteData.socialLinks.map((link) => (
               <a
@@ -127,7 +110,7 @@ export default function Home() {
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+                className="text-gray-400 hover:text-gray-700 transition-colors"
               >
                 {link.label}
               </a>
@@ -136,8 +119,8 @@ export default function Home() {
         </section>
 
         {/* Footer */}
-        <footer className="text-center pt-4 pb-8">
-          <p className="text-gray-400 text-xs">
+        <footer className="mt-16 pt-8 border-t border-gray-100">
+          <p className="text-gray-300 text-xs">
             &copy; 2026 Gabriel Keller
           </p>
         </footer>

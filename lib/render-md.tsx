@@ -133,6 +133,9 @@ export function renderMarkdown(text: string, styles: MdStyles): React.ReactNode[
     if (line.trimStart().startsWith("→")) return <div key={i} className="text-[13px]" style={{ color: styles.dimColor }}>{linkify(line)}</div>;
     if (line.trimStart().startsWith("-") || line.trimStart().startsWith("•")) return <div key={i} className="text-[13px]" style={{ color: styles.dimColor }}>{linkify(line)}</div>;
 
+    // Tool confirmation badge
+    if (line.trim() === "📫 message sent") return <div key={i} className="text-[13px]" style={{ color: styles.dimColor, opacity: 0.5 }}>— message sent to gabe</div>;
+
     // Empty line
     if (line.trim() === "") return <div key={i} className="h-2" />;
 

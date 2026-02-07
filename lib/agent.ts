@@ -1,5 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { tool, zodSchema } from "ai";
+import { z } from "zod";
 import { siteData } from "@/lib/data";
 import { getWorkItems, getHackathons } from "@/lib/content";
 import { getBlogPosts } from "@/lib/mdx";
@@ -129,4 +131,63 @@ export function checkRateLimit(ip: string): { allowed: boolean; remaining: numbe
 
   entry.count++;
   return { allowed: true, remaining: RATE_LIMIT - entry.count };
+}
+
+/* ── Slack notification tool ── */
+
+const NOTIFY_LIMIT = 10; // max notifications per IP per window
+const notifyCounts = new Map<string, { count: number; resetAt: number }>();
+
+function canNotify(ip: string): boolean {
+  const now = Date.now();
+  const entry = notifyCounts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    notifyCounts.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= NOTIFY_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
+export function getAgentTools(ip: string) {
+  return {
+    notify_gabe: tool({
+      description:
+        "Send a message to Gabe from a website visitor. Use this whenever someone " +
+        "wants to leave a message, share contact info, or say something to Gabe. " +
+        "Anonymous messages are fine -- contact info is optional.",
+      inputSchema: zodSchema(
+        z.object({
+          message: z
+            .string()
+            .describe(
+              "The full message to send Gabe. Write naturally -- include the visitor's " +
+              "name and contact info if they shared any, plus what they want or said.",
+            ),
+        }),
+      ),
+      execute: async ({ message }) => {
+        const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+        if (!webhookUrl) return { success: false, reason: "not configured" };
+
+        if (!canNotify(ip)) {
+          return { success: false, reason: "notification limit reached for this session" };
+        }
+
+        const text = `*keller.cv* 👋\n${message}`;
+
+        try {
+          const res = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          return { success: res.ok };
+        } catch {
+          return { success: false, reason: "request failed" };
+        }
+      },
+    }),
+  };
 }

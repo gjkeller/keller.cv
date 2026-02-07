@@ -1,6 +1,6 @@
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
-import { getSystemPrompt, checkRateLimit } from "@/lib/agent";
+import { getSystemPrompt, checkRateLimit, getAgentTools } from "@/lib/agent";
 
 export const maxDuration = 30;
 
@@ -53,12 +53,42 @@ export async function POST(req: Request) {
       model: google("gemini-2.0-flash"),
       system: getSystemPrompt(typeof timezone === "string" ? timezone : undefined),
       messages: trimmed,
+      tools: getAgentTools(ip),
+      stopWhen: stepCountIs(2),
       temperature: 0.6,
       maxOutputTokens: 512,
     });
 
-    return result.toTextStreamResponse({
-      headers: { "X-RateLimit-Remaining": String(remaining) },
+    // Stream text to client, drive tool execution via fullStream.
+    // Inject green badge when a real tool call fires.
+    const encoder = new TextEncoder();
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+
+    (async () => {
+      try {
+        let badgeSent = false;
+        for await (const part of result.fullStream) {
+          if (part.type === "tool-call" && !badgeSent) {
+            await writer.write(encoder.encode("📫 message sent\n"));
+            badgeSent = true;
+          }
+          if (part.type === "text-delta") {
+            await writer.write(encoder.encode(part.text));
+          }
+        }
+      } catch (err) {
+        console.error("[agent] stream error:", err);
+      } finally {
+        await writer.close();
+      }
+    })();
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-RateLimit-Remaining": String(remaining),
+      },
     });
   } catch (err: unknown) {
     console.error("[agent] Error:", err);

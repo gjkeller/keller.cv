@@ -25,6 +25,8 @@ There's also a hidden `.secret` file. Good luck finding it.
 
 The terminal's standout feature. Type `agent` (or `claude` or `codex`) to start chatting with an AI that acts as Gabe's digital representative. It's not a generic chatbot -- it has a hand-written personality and knows Gabe's full context.
 
+![Chatting with the agent](public/images/blog/building-keller-cv/final-agent-chat.png)
+
 **How it's built:**
 
 - Runs on **Gemini 2.0 Flash** via the [Vercel AI SDK](https://sdk.vercel.ai/)

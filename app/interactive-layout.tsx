@@ -56,13 +56,13 @@ export function InteractiveLayout({
   const [activeFile, setActiveFile] = useState<{ command: string; content: string } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
-  const [terminalOpen, setTerminalOpen] = useState(true);
-  const [terminalFullscreen, setTerminalFullscreen] = useState(false);
-
   // Viewport detection — single terminal instance adapts to desktop/mobile
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
   );
+
+  const [terminalOpen, setTerminalOpen] = useState(isDesktop);
+  const [terminalFullscreen, setTerminalFullscreen] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
     setIsDesktop(mql.matches);

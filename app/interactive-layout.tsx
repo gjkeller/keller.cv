@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
-import type { WorkItem, HackathonWin, Partner, SiteData } from "@/lib/data";
+import { useState, useCallback, useMemo, useRef } from "react";
+import type { WorkItem, HackathonWin } from "@/lib/content";
 import type { Theme } from "@/lib/themes";
-import { THEMES, THEME_NAMES, resolveAutoTheme } from "@/lib/themes";
+import { useTheme } from "@/lib/theme-context";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
 import { Terminal } from "./terminal";
+import { renderMarkdown, type MdStyles } from "@/lib/render-md";
 
 /* ── Social icon map ── */
 const socialIcons: Record<string, React.ReactNode> = {
@@ -24,71 +25,7 @@ interface Props {
   hackathons: HackathonWin[];
   posts: { slug: string; title: string; date: string; description?: string; content: string }[];
   terminalFiles: Record<string, string>;
-  acmSales: { detail: string; partners: Partner[] };
-}
-
-/* ── Build terminal file content from data ── */
-function buildWorkContent(item: WorkItem, acmSales?: Props["acmSales"]): string {
-  const heading = item.image ? `# ${item.company} ![${item.company}](${item.image})` : `# ${item.company}`;
-  let content = `${heading}\n\n**${item.role}**\n${item.url}\n\n${item.detail}`;
-  if (item.company === "Texas ACM" && acmSales) {
-    const logos = acmSales.partners.map((p) => p.logo).join(",");
-    content += `\n\nCompanies I've sold to\n\n${acmSales.detail}\n\n{{logos:${logos}}}`;
-  }
-  return content;
-}
-
-function buildHackathonContent(item: HackathonWin): string {
-  const heading = item.image ? `# ${item.project} ![${item.project}](${item.image})` : `# ${item.project}`;
-  return `${heading}\n\n**${item.name}** · ${item.prize}\n${item.url}\n\n${item.detail}`;
-}
-
-function getTerminalFile(
-  type: string,
-  id: string,
-  currentWork: WorkItem[],
-  hackathons: HackathonWin[],
-  posts: Props["posts"],
-  acmSales?: Props["acmSales"],
-): { command: string; content: string } | null {
-  if (type === "work") {
-    const item = currentWork.find((w) => w.company === id);
-    if (!item) return null;
-    const slug = item.company.toLowerCase().replace(/\s+/g, "-");
-    return { command: `cat ${slug}.md`, content: buildWorkContent(item, acmSales) };
-  }
-  if (type === "hackathon") {
-    const item = hackathons.find((h) => h.name === id);
-    if (!item) return null;
-    const slug = item.project.toLowerCase().replace(/\s+/g, "-");
-    return { command: `cat projects/${slug}.md`, content: buildHackathonContent(item) };
-  }
-  if (type === "post") {
-    const post = posts.find((p) => p.slug === id);
-    if (!post) return null;
-    return { command: `cat blog/${post.slug}.md`, content: `# ${post.title}\n\n*${new Date(post.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}*\n\n${post.description || post.content.slice(0, 400)}` };
-  }
-  return null;
-}
-
-function buildInitialFiles(currentWork: WorkItem[], hackathons: HackathonWin[], posts: Props["posts"], acmSales?: Props["acmSales"]) {
-  const files: Record<string, string> = {};
-  const urls: Record<string, string> = {};
-  for (const item of currentWork) {
-    const slug = item.company.toLowerCase().replace(/\s+/g, "-");
-    files[`${slug}.md`] = buildWorkContent(item, acmSales);
-    if (item.url) urls[`${slug}.md`] = item.url;
-  }
-  for (const win of hackathons) {
-    const slug = win.project.toLowerCase().replace(/\s+/g, "-");
-    files[`projects/${slug}.md`] = buildHackathonContent(win);
-    if (win.url) urls[`projects/${slug}.md`] = win.url;
-  }
-  for (const post of posts) {
-    files[`blog/${post.slug}.md`] = `# ${post.title}\n\n*${new Date(post.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}*\n\n${post.description || post.content.slice(0, 400)}`;
-    urls[`blog/${post.slug}.md`] = `/blog/${post.slug}`;
-  }
-  return { files, urls };
+  terminalUrls: Record<string, string>;
 }
 
 /* ── Small icons ── */
@@ -103,66 +40,143 @@ function ghostCardStyle(theme: Theme) {
     ["--hover-border" as string]: theme.cardHoverBorder,
     ["--hover-shadow" as string]: theme.cardShadow,
     ["--active-shadow" as string]: theme.cardActiveShadow,
+    ["--gloss-color" as string]: theme.isDark
+      ? "rgba(255,255,255,0.06)"
+      : "rgba(255,255,255,0.45)",
   };
 }
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
+const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 
 /* ── Main layout ── */
 export function InteractiveLayout({
   socialLinks, calLink15, calLink30, name, tagline, bio,
-  currentWork, hackathons, posts, terminalFiles, acmSales,
+  currentWork, hackathons, posts, terminalFiles, terminalUrls,
 }: Props) {
   const [activeFile, setActiveFile] = useState<{ command: string; content: string } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
-  const [themeMode, setThemeMode] = useState<string>("auto");
-  const [systemDark, setSystemDark] = useState(false);
 
-  // Detect system color scheme
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setSystemDark(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+  // Shared theme from context (persisted + system-aware)
+  const { theme, setThemeMode } = useTheme();
 
-  // Resolve actual theme from mode
-  const theme: Theme = useMemo(() => {
-    if (themeMode === "auto") return resolveAutoTheme(systemDark);
-    return THEMES.find((t) => t.name === themeMode) || THEMES[0];
-  }, [themeMode, systemDark]);
+  // Build blog terminal entries from posts
+  const allFiles = useMemo(() => {
+    const files = { ...terminalFiles };
+    for (const post of posts) {
+      files[`blog/${post.slug}.md`] = `# ${post.title}\n\n*${new Date(post.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}*\n\n${post.description || post.content.slice(0, 400)}\n\nRead full post: /blog/${post.slug}`;
+    }
+    return files;
+  }, [terminalFiles, posts]);
 
-  const initialFiles = useMemo(() => buildInitialFiles(currentWork, hackathons, posts, acmSales), [currentWork, hackathons, posts, acmSales]);
+  const allUrls = useMemo(() => {
+    const urls = { ...terminalUrls };
+    for (const post of posts) {
+      urls[`blog/${post.slug}.md`] = `/blog/${post.slug}`;
+    }
+    return urls;
+  }, [terminalUrls, posts]);
 
   const handleThemeChange = useCallback((themeName: string) => {
-    if (themeName === "auto" || THEME_NAMES.includes(themeName)) {
-      setThemeMode(themeName);
-    }
-  }, []);
+    setThemeMode(themeName);
+  }, [setThemeMode]);
 
   const handleClick = useCallback((type: string, id: string) => {
     const key = `${type}-${id}`;
     if (activeId === key) { setActiveId(null); return; }
     setActiveId(key);
-    const file = getTerminalFile(type, id, currentWork, hackathons, posts, acmSales);
-    if (file) { setActiveFile(file); if (!terminalOpen) setTerminalOpen(true); }
-  }, [activeId, currentWork, hackathons, posts, terminalOpen]);
+
+    let command: string | null = null;
+    let content: string | null = null;
+
+    if (type === "work") {
+      const item = currentWork.find((w) => w.company === id);
+      if (item) {
+        command = `cat ${item.slug}.md`;
+        content = allFiles[`${item.slug}.md`] ?? null;
+      }
+    } else if (type === "hackathon") {
+      const item = hackathons.find((h) => h.name === id);
+      if (item) {
+        command = `cat projects/${item.slug}.md`;
+        content = allFiles[`projects/${item.slug}.md`] ?? null;
+      }
+    } else if (type === "post") {
+      const post = posts.find((p) => p.slug === id);
+      if (post) {
+        command = `cat blog/${post.slug}.md`;
+        content = allFiles[`blog/${post.slug}.md`] ?? null;
+      }
+    }
+
+    if (command && content) {
+      setActiveFile({ command, content });
+      if (!terminalOpen) setTerminalOpen(true);
+    }
+  }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen]);
 
   const toggleMobile = useCallback((key: string) => {
     setMobileExpanded((prev) => (prev === key ? null : key));
   }, []);
 
+  const mobileMdStyles: MdStyles = useMemo(() => ({
+    headingColor: theme.text,
+    textColor: theme.text,
+    dimColor: theme.textDim,
+    isDark: theme.isDark,
+  }), [theme]);
+
   const cardStyle = ghostCardStyle(theme);
 
+  /* ── Fluent-style glossy hover (event delegation) ── */
+  const mainRef = useRef<HTMLElement>(null);
+
+  const handleGlossMove = useCallback((e: React.MouseEvent) => {
+    const card = (e.target as HTMLElement).closest(".ghost-card") as HTMLElement | null;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    card.style.setProperty("--gx", `${e.clientX - rect.left}px`);
+    card.style.setProperty("--gy", `${e.clientY - rect.top}px`);
+    card.style.setProperty("--gloss-opacity", "1");
+  }, []);
+
+  const handleGlossLeave = useCallback((e: React.MouseEvent) => {
+    const card = (e.target as HTMLElement).closest(".ghost-card") as HTMLElement | null;
+    if (!card) return;
+    const related = e.relatedTarget as HTMLElement | null;
+    if (related && card.contains(related)) return;
+    card.style.setProperty("--gloss-opacity", "0");
+  }, []);
+
   return (
-    <main className="min-h-screen transition-colors duration-300" style={{ backgroundColor: theme.bg }}>
+    <main
+      ref={mainRef}
+      className="min-h-screen transition-colors duration-300"
+      style={{ backgroundColor: theme.bg }}
+      onMouseMove={handleGlossMove}
+      onMouseOut={handleGlossLeave}
+    >
       <style>{`
         .ghost-card:hover { background-color: var(--hover-bg); border-color: var(--hover-border); box-shadow: var(--hover-shadow); }
         .ghost-card:active { box-shadow: var(--active-shadow); }
+        .ghost-card { position: relative; overflow: hidden; }
+        .ghost-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(
+            220px 150px ellipse at var(--gx, -300px) var(--gy, -300px),
+            var(--gloss-color, rgba(255,255,255,0.06)) 0%,
+            transparent 100%
+          );
+          opacity: var(--gloss-opacity, 0);
+          transition: opacity 0.3s ease;
+          pointer-events: none;
+          z-index: 1;
+        }
       `}</style>
 
       {/* Content column — centered on small screens, left-aligned when terminal visible on lg */}
@@ -200,14 +214,14 @@ export function InteractiveLayout({
 
             {/* Call buttons */}
             <div className="grid grid-cols-2 gap-3 mt-6">
-              <a href={calLink15} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
+              <a href={calLink15} target="_blank" rel="noopener noreferrer" className={`${callCardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
                 <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
                 <div>
                   <span className="font-medium text-[14px]" style={{ color: theme.text }}>Quick call</span>
                   <span className="text-xs block" style={{ color: theme.textMuted }}>15 min</span>
                 </div>
               </a>
-              <a href={calLink30} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
+              <a href={calLink30} target="_blank" rel="noopener noreferrer" className={`${callCardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
                 <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 <div>
                   <span className="font-medium text-[14px]" style={{ color: theme.text }}>Deep dive</span>
@@ -241,7 +255,7 @@ export function InteractiveLayout({
                     <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
                   </button>
                   <MobileDetail open={isMobileOpen} theme={theme}>
-                    <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{item.detail}</p>
+                    <div className="text-sm leading-relaxed">{renderMarkdown(item.detail, mobileMdStyles)}</div>
                     {item.url && <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Visit &rarr;</a>}
                   </MobileDetail>
                 </div>
@@ -273,7 +287,7 @@ export function InteractiveLayout({
                     <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
                   </button>
                   <MobileDetail open={isMobileOpen} theme={theme}>
-                    <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{win.detail}</p>
+                    <div className="text-sm leading-relaxed">{renderMarkdown(win.detail, mobileMdStyles)}</div>
                     <a href={win.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">View on Devpost &rarr;</a>
                   </MobileDetail>
                 </div>
@@ -322,18 +336,18 @@ export function InteractiveLayout({
       </div>
 
       {/* Terminal */}
-      <div className={`hidden lg:block fixed transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      <div className={`hidden lg:block fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
         !terminalOpen
-          ? "opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
+          ? "transition-all duration-150 opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
           : terminalFullscreen
-            ? "opacity-100 scale-100 z-50 top-10 left-10 right-10 bottom-10 w-auto h-auto ml-0 translate-y-0"
-            : "opacity-100 scale-100 left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
+            ? "transition-all duration-500 opacity-100 scale-100 z-50 top-10 left-10 right-10 bottom-10 w-auto h-auto ml-0 translate-y-0"
+            : "transition-all duration-500 opacity-100 scale-100 left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
       }`}>
         <Terminal
           activeFile={activeFile}
-          staticFiles={terminalFiles}
-          initialFiles={initialFiles.files}
-          initialUrls={initialFiles.urls}
+          staticFiles={allFiles}
+          initialFiles={{}}
+          initialUrls={allUrls}
           theme={theme}
           onClose={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
           onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}

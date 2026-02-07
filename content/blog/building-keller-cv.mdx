@@ -1,0 +1,219 @@
+---
+title: "How I built keller.cv"
+description: "60 commits, 9 prototypes, one afternoon. I rebuilt my entire personal site with Cursor and Claude Opus 4.6 in a single session. Here's how."
+date: "2026-02-07"
+author: "Gabriel Keller"
+tags: ["design", "next.js", "cursor", "ai"]
+---
+
+I rebuilt my personal website from scratch in one afternoon. One Cursor session. 60 commits. 9 named prototypes. A working terminal with a virtual filesystem, five color themes, a Fluent-style gloss effect, and a sassy AI agent that knows my entire resume and will roast you if you ask a lazy question.
+
+A year ago, building this would have taken me a week minimum. With Opus 4.6, I was deploying by dinner.
+
+![The final result: keller.cv in light mode](/images/blog/building-keller-cv/final-desktop-light.png)
+
+## The old site
+
+The previous version of keller.cv was a bear blog fork. A simple markdown page with my name, a bio, and a bulleted list of things I was working on. It looked like this:
+
+![The old keller.cv - a bear blog template](/images/blog/building-keller-cv/old-bear-blog.png)
+
+It worked. It wasn't broken. But it also wasn't doing anything for me. Every CS student has a site that looks like this. The content was fine, but the presentation said nothing about who I am or how I think. The repo was literally called `gabriel-bear-blog`. Time for a change.
+
+I'd been putting off a redesign because I figured it would take a weekend or more of focused work, and between Agent Operations Lab, Texas ACM, and my internship at GridMatrix, I didn't have a weekend to burn. Then Opus 4.6 dropped, and I realized the timeline math had changed.
+
+## Research
+
+Before prompting anything, I spent time looking at personal sites from other developers I respect. This part was fully manual. AI is great at building things but it can't tell you what you want. That's still your job.
+
+I studied five sites:
+
+**[armandiorg.com](https://armandiorg.com)** had extreme restraint. White background, left-aligned text, no nav. Basically a business card. The whitespace gave it confidence, but too sparse for someone with four active roles.
+
+![armandiorg.com - extreme minimalism](/images/blog/building-keller-cv/armandiorg-viewport.png)
+
+**[shayaanazeem.com](https://shayaanazeem.com)** packed a lot of content without feeling cluttered. Lowercase casual tone, a command palette (Cmd+K), project cards with images. The command palette was a nice power-user touch.
+
+![shayaanazeem.com - dense content, casual tone](/images/blog/building-keller-cv/shayaanazeem-viewport.png)
+
+**[ishanshah.me](https://ishanshah.me)** caught my eye the most. Warm cream background, clean typography, a dotted-line work history table. Professional without being corporate. Also a UT Austin grad.
+
+![ishanshah.me - warm editorial style](/images/blog/building-keller-cv/ishanshah-viewport.png)
+
+**[rasmic.xyz](https://rasmic.xyz)** went dark and consultant-y. Service cards, company logo marquee. The most "I'm selling something" of the group. Clean layout though.
+
+![rasmic.xyz - dark consultant vibe](/images/blog/building-keller-cv/rasmic-viewport.png)
+
+**[aelew.com](https://aelew.com)** was the most visually polished. Dark theme with glassmorphism, floating nav, experience timeline with company logos. Student portfolio done right.
+
+![aelew.com - polished glassmorphism](/images/blog/building-keller-cv/aelew-viewport.png)
+
+After studying all five, I wrote a quick design brief: light/warm (not dark), medium density, professional but not stiff, no nav bar, no prominent CTA. Then I opened Cursor and started building.
+
+## The prototype marathon
+
+This is where the AI speed became absurd. I should mention: I didn't type any of this. Nearly every prompt was dictated using [Wispr Flow](https://wisprflow.ai), a voice-to-text app that works directly in Cursor. I was sitting in a Capital One Cafe talking quietly into my laptop. Describe a design, see it built, talk through the next one.
+
+I'd describe a direction in a few sentences -- "cream background, serif headings, dotted work table like ishanshah.me, sections for Currently, Previously, Writing, and Connect" -- and have a complete, rendered prototype in 3-5 minutes. Not a wireframe. Not a sketch. A fully built Next.js page with real content, proper spacing, and working links. Then I'd look at it, decide what worked and what didn't, and prompt the next version.
+
+In a pre-AI workflow, each of these prototypes would be an afternoon of work. I burned through nine of them in a couple hours.
+
+### Prototype A: "Editorial warmth"
+
+Cream background, serif headings, dotted work table connecting company names to descriptions. A "Previously" section listed everything from hackathons to a Japanese government grant.
+
+![Prototype A - cream bg, serif headings, dotted work table](/images/blog/building-keller-cv/prototype-a.png)
+
+Liked the editorial feel. The serif headings made it look like a resume website from 2018 though. The dotted lines added visual noise with more than four items. Killed the serifs, kept the warm direction.
+
+### Prototype B: "Typographic minimalism"
+
+Pulled back hard. White background, bold sans-serif, minimal content. Each work item on a single line.
+
+![Prototype B - bold type, lots of air](/images/blog/building-keller-cv/prototype-b.png)
+
+Too stripped down. Felt like a landing page for someone with one thing going on. I have four active roles and two hackathon wins. Next.
+
+### Prototype C: "Structured cards"
+
+White cards on a light gray background. Header card, Currently card, Writing card, "Want to chat?" card. Each with rounded borders and shadows.
+
+![Prototype C - card sections](/images/blog/building-keller-cv/prototype-c.png)
+
+Better density. But the cards made everything feel like a dashboard. And "Want to chat? I'm always happy to grab a coffee" sounded like a LinkedIn connection request. No.
+
+### Prototype C2: "Ruled layout"
+
+Dropped the cards. Horizontal rules instead. Scheduling link with a calendar icon.
+
+![Prototype C2 - horizontal rules, no card borders](/images/blog/building-keller-cv/prototype-c2.png)
+
+Getting closer. The content breathed. But still felt like a static page. Every site I'd studied was basically a decorated list of facts. I wanted something interactive.
+
+### Prototypes D1 and D2: generative art experiments
+
+Social icons in the header, generative dot-matrix pattern in the top right corner. D1 had scattered dots, D2 had a circular pattern.
+
+![Prototype D1 - social icons with dot matrix experiment](/images/blog/building-keller-cv/prototype-d1.png)
+
+The generative art didn't earn its place. Decoration without purpose. Kept the social icons, killed the dots.
+
+At this point -- about 30 commits and maybe 90 minutes in -- the layout was getting tighter but I still didn't have the thing that would make this site feel like *mine*.
+
+## The terminal idea
+
+Then the idea hit: what if the right half of the screen was a working terminal?
+
+Not a fake terminal that displays static text. An actual interactive shell with commands, a filesystem, tab completion, and command history. I'm a developer. I live in the terminal. Why wouldn't my personal site have one?
+
+I described the concept to Claude: "Two columns. Left side is the ruled layout from C2. Right side is a macOS-style terminal window with traffic light buttons. The terminal auto-types `cat welcome.md` on load. When you click a card on the left, the terminal types the corresponding `cat` command and shows the full content." First working version landed in about ten minutes.
+
+The moment I saw it running, I knew. Everything before this had been iterating on the same basic idea -- a prettier list of facts. The terminal made the site an experience.
+
+What followed was a rapid series of refinements, still with Claude doing the heavy lifting on implementation while I steered the design. Skeuomorphic pressed-inset cards. Clickable terminal links. A fullscreen mode on the green traffic light. Each idea took one or two prompts to ship.
+
+### The skeuomorphic hover effect
+
+I wanted the cards on the left to feel physical. On hover, they get a subtle inset shadow and a border -- like pressing a soft rubber button. On click, the shadow deepens. I told Claude "make the cards feel like pressing a physical button, like a skeuomorphic inset" and it nailed the effect on the first try. Each theme defines its own shadow values so the pressed effect looks correct in both light and dark modes.
+
+## The gloss effect
+
+I wanted one more detail. Microsoft's [Fluent Design](https://fluent2.microsoft.design/) has a "reveal highlight" where a glossy light follows your cursor across UI elements. I loved this effect and described it to Claude. It built a working version with event delegation -- a radial gradient that tracks your mouse across each card in real-time.
+
+![The gloss effect on a card in light mode](/images/blog/building-keller-cv/gloss-hover-light.png)
+
+The whole thing was maybe two prompts -- "add a Fluent-style gloss that follows the cursor" and then "make it more subtle in dark mode."
+
+![Dark mode with the midnight theme](/images/blog/building-keller-cv/final-desktop-dark-top.png)
+
+## Five themes from one terminal command
+
+The site ships with five color themes: light, dark-blue, dark-gray, warm, and midnight. You switch by typing `theme midnight` in the terminal.
+
+Each theme is an object with 15 color tokens -- background, text, borders, card hover states, terminal colors, and a dark/light boolean. Auto mode reads your system preference and picks light or midnight. I spent more time than I'd like to admit tuning the warm theme to match that cream from [ishanshah.me](https://ishanshah.me), with the terminal sitting slightly lighter than the page so it has its own presence.
+
+The entire theme system was one prompt. Claude generated the full theme object array and wired it through the component tree in one pass.
+
+## A full virtual filesystem
+
+The terminal has a real (virtual) filesystem built from markdown files in the repo:
+
+- `ls` lists files in the current directory
+- `cat welcome.md` reads a file
+- `cd projects/` changes directory
+- `open cursor.md` opens the associated URL in a new tab
+- `pwd`, tab completion, arrow key history, `ll` aliased to `ls`
+
+The filesystem builds at render time from `content/terminal/`. Work items become root-level files like `cursor.md`, hackathon projects go in `projects/`, blog posts go in `blog/`. Each file has an optional URL mapping for the `open` command.
+
+When you click a card on the left, the terminal auto-types the `cat` command with a typewriter effect. The output streams character by character. It sounds like a gimmick but it makes the connection between the two columns feel natural. Click "Agent Operations Lab" on the left, the terminal shows you the writeup.
+
+There's an easter egg too. Run `cat .secret` if you're curious.
+
+The filesystem implementation -- path resolution, `cd` with `..`, tab completion across directories, the whole thing -- was built in one shot. I described the commands I wanted and Claude generated the full `runCommand` switch statement, the `buildFileSystem` function, the path resolver, and the tab completer. Around 300 lines of code, working on the first try. That's the kind of thing that makes me feel like the game has genuinely changed.
+
+## The agent
+
+This is my favorite part. Type `agent` in the terminal and you enter a chat mode with an AI that knows everything about me. It streams responses in real time. It has a personality.
+
+![The agent responding to a question in midnight theme](/images/blog/building-keller-cv/final-agent-chat.png)
+
+The agent is backed by an API route that feeds Claude a system prompt with my full context -- identity, work history, hackathon wins, blog posts, LinkedIn, resume. The personality was inspired by [Poke](https://poke.com) from The Interaction Company, an AI assistant I use every single day that has genuine attitude instead of corporate pleasantries. I wanted that same energy. The system prompt tells the agent to be "aggressively witty, unapologetically sassy, and sharp as hell." Lowercase everything. Minimal punctuation. Light Gen Z slang. It's not me -- it's my "digital bouncer, hype man, and resident smartass."
+
+Ask it who I am and you might get: "oh you want the gabe keller spiel huh? buckle up buttercup"
+
+The streaming setup uses a ReadableStream so responses appear character by character, matching the typewriter feel of the rest of the terminal. Rate-limited to 100 messages per IP per day so nobody burns through my API credits.
+
+If you're reading this, go try it. Visit [keller.cv](https://keller.cv) and type `agent`. Ask it something weird. It can handle it.
+
+## Mobile
+
+The terminal is a desktop feature. On mobile, it's hidden. Tapping a card expands it inline with a slide-down animation showing the same content.
+
+![Mobile view - clean single column](/images/blog/building-keller-cv/final-mobile.png)
+
+I considered a mobile terminal but typing shell commands on a phone keyboard would be painful. The inline expansion works well enough. If you want the full experience, pull it up on a laptop.
+
+## The AI workflow, honestly
+
+I want to be specific about how this was built because I think people are still underestimating what's possible right now.
+
+The entire redesign happened on February 6, 2026. One Cursor session. The git log shows 60 commits between the first design notes and the final checkpoint. Start to finish, the active building time was somewhere around 4-5 hours. That includes the research phase, every prototype, the terminal, the agent, five themes, the gloss effect, the virtual filesystem, mobile responsiveness, favicon work, real company logos, and a dozen alignment and polish fixes. I was also building [agentops.sh](https://agentops.sh) concurrently during the same period -- two full sites in parallel, both with AI doing the implementation.
+
+I used Cursor with Claude Opus 4.6. Every line of code in this site was either written or heavily shaped by the model. My job was to make decisions: what to build, what to kill, how things should feel, when something was off by 2 pixels, when a design direction was a dead end. The model's job was to turn those decisions into working code at a speed that let me actually iterate on design instead of getting bogged down in implementation.
+
+The thing that made Opus 4.6 different from what I'd used before wasn't just that it wrote correct code (Sonnet could do that). It was that it understood *vibe*. I could say "make the cards feel like pressing a physical button" and it knew I meant inset box shadows, not `transform: scale(0.98)`. I could say "Fluent-style gloss" and it generated the radial gradient approach without me having to spec the CSS. It got the intent behind the words, not just the literal instructions.
+
+This matters because the bottleneck in a redesign isn't writing CSS. It's the feedback loop. How fast can you go from "I have an idea" to "I can see it and decide if it works"? With Opus 4.6 in Cursor, that loop was 2-5 minutes per prototype. Fast enough that I could build something, hate it, and move on without any emotional attachment to the code. No sunk cost. No "well, I already spent three hours on this card layout, so let's make it work." Just kill it and try the next thing.
+
+I've been building with AI since before it was useful. Back in high school I wanted to give a talk to middle school students about how promising AI was, but the models weren't there yet. I tried with GPT-2. Kept trying with GPT-3. Then GPT-3.5 came out and in my opinion it could genuinely pass the Turing test. I ran an experiment at Kealing Middle School where I had students interact with it during a presentation -- and it worked. It tricked them into thinking they were talking to another student. That was a hallmark moment for me. Every model since has left me more shocked than the last. (No, this is not an AI hallucination - this was part of the club I founded at LASA, called Programming in Practice.)
+
+## Where this is going
+
+Building keller.cv was a one-afternoon project, but the ideas behind it are what I've been spending most of my time on lately. For the past four weeks I've been deep in Ralph loops -- autonomous agent workflows where an AI runs in a loop, picking tasks from a checklist, implementing, committing, and exiting so the next iteration starts with fresh context.
+
+The core insight is simple: LLM context windows degrade as they fill up. The "smart zone" is somewhere around 40-60% utilization, and there's no way to selectively free context once it's loaded. Ralph solves this by treating each loop iteration as isolated. State lives on disk -- checklists, git history, markdown files -- not in the model's memory. The agent reads what it needs, does one task, commits, and exits. The loop restarts with a clean context window.
+
+This is a fundamental shift from how most people use AI coding tools today. Instead of one long conversation that slowly degrades, you get a pipeline of focused, high-quality iterations. Software becomes clay on the pottery wheel -- if something isn't right, throw it back on the wheel.
+
+If you want to go deeper, two resources I highly recommend: Geoffrey Huntley's [Ralph Loops from First Principles](https://www.youtube.com/watch?v=4Nna09dG_c0) video, which covers the orchestrator pattern and context window economics in detail, and Peter Steinberger's [Shipping at Inference Speed](https://steipete.me/posts/2025/shipping-at-inference-speed) blog, which is the best writeup I've seen on what it actually looks like to ship software this way day-to-day.
+
+## Getting started
+
+If you're a student and want to start building like this, a few resources:
+
+- [Wispr Flow](https://wisprflow.ai) is free for students for 3 months. If you want an open source alternative, [Amical](https://amical.ai) is excellent.
+- The [GitHub Student Developer Pack](https://education.github.com/pack) gives you access to GitHub Copilot, which you can pair with [OpenCode](https://opencode.ai) for powerful agent-based coding for free. There's also a [reverse proxy](https://github.com/acheong08/claude-copilot-proxy) that lets you use Copilot credits with Claude Code -- technically against TOS, so I'm not encouraging it, just noting it exists.
+- If you attend a target CS school or have been to a Y Combinator event, the YC student pack includes thousands of free LLM credits you can use today.
+
+The barrier to entry for building with AI is basically zero right now. You don't need a lot of money to get started as a student.
+
+## Go talk to the agent
+
+If you made it this far, visit [keller.cv](https://keller.cv) and open the terminal. Type `help` to see what's available. Type `agent` to talk to the AI. Type `theme midnight` for dark mode. Poke around the filesystem. Find the easter egg.
+
+The whole site is open source -- check the [repo](https://github.com/gjkeller/gabriel-bear-blog) if you're curious about the tech stack or how any of it works.
+
+I rebuilt this site to make it something people interact with, not just scan. The agent is waiting, and it has opinions.
+
+One last thing: even this blog post was generated by Cursor in about five minutes. I pointed it at my past chat history and it pulled the narrative, took screenshots, and assembled everything automatically. The entire site -- every prototype, every feature, this writeup -- burned through an estimated 125 million tokens (cached and non-cached combined). I vetted every word and obviously came up with the ideas, but the writing and assembly was the model's. It's turtles all the way down.

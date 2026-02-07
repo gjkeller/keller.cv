@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { Theme } from "@/lib/themes";
 import { THEME_NAMES } from "@/lib/themes";
+import { renderMarkdown, type MdStyles } from "@/lib/render-md";
 
 /* ── Types ── */
 interface TerminalProps {
@@ -58,6 +59,8 @@ function buildFileSystem(
 }
 
 /* ── Help & man pages ── */
+const AGENT_ALIASES = ["agent", "claude", "codex"];
+
 const HELP_TEXT = `Available commands:
 
   help          Show this help message
@@ -70,9 +73,9 @@ const HELP_TEXT = `Available commands:
   clear         Clear terminal
   theme         Change the color theme
   man <cmd>     Manual for a command
+  agent [msg]   Chat with an AI about Gabe
 
-Files are populated as you click items on the left.
-Try: ls, cat welcome.md, theme --list`;
+Try: ls, cat welcome.md, agent`;
 
 const MAN_PAGES: Record<string, string> = {
   ls: "ls - list directory contents\n\nUsage: ls [directory]\n\nList files in the current or specified directory.",
@@ -85,6 +88,7 @@ const MAN_PAGES: Record<string, string> = {
   clear: "clear - clear the terminal screen\n\nUsage: clear\n\nRemoves all previous output from the terminal.",
   man: "man - format and display manual pages\n\nUsage: man <command>\n\nDisplay the manual page for the specified command.",
   theme: `theme - change the color theme\n\nUsage:\n  theme --list       List available themes\n  theme --set <name> Set the active theme\n  theme --help       Show this help\n\nAvailable themes: ${THEME_NAMES.join(", ")}`,
+  agent: "agent - chat with an AI about Gabe\n\nUsage:\n  agent              Enter interactive chat mode\n  agent <message>    Ask a single question\n\nAliases: claude, codex\n\nType 'exit' to leave chat mode.",
 };
 
 /* ── Typewriter hook ── */
@@ -132,6 +136,14 @@ export function Terminal({
   const [historyIdx, setHistoryIdx] = useState(-1);
   const savedInput = useRef("");
 
+  /* ── Agent chat mode ── */
+  const [chatMode, setChatMode] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([]);
+  const [streamingOutput, setStreamingOutput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const lastCtrlCRef = useRef<number>(0);
+
   const [autoCommand, setAutoCommand] = useState("");
   const [autoOutput, setAutoOutput] = useState("");
   const [autoPhase, setAutoPhase] = useState<"idle" | "typing-cmd" | "typing-output">("idle");
@@ -143,12 +155,7 @@ export function Terminal({
   const cmdTyper = useTypewriter(autoPhase === "typing-cmd" ? autoCommand : "", 20);
   const outputTyper = useTypewriter(autoPhase === "typing-output" ? autoOutput : "", 6);
 
-  const fileUrls: Record<string, string> = {
-    "welcome.md": "https://keller.cv",
-    "about.md": "https://github.com/gjkeller",
-  };
-
-  const { fs, dirs, urls } = buildFileSystem(staticFiles, dynamicFiles, dynamicUrls, fileUrls);
+  const { fs, dirs, urls } = buildFileSystem(staticFiles, dynamicFiles, dynamicUrls, initialUrls);
 
   /* ── Path resolution ── */
   const resolvePath = useCallback((path: string): string => {
@@ -170,7 +177,7 @@ export function Terminal({
   /* ── Tab completion ── */
   const getCompletions = useCallback((partial: string): string[] => {
     const parts = partial.split(/\s+/);
-    const commands = ["help", "ls", "ll", "cat", "open", "cd", "pwd", "whoami", "clear", "man", "echo", "date", "theme"];
+    const commands = ["help", "ls", "ll", "cat", "open", "cd", "pwd", "whoami", "clear", "man", "echo", "date", "theme", "agent", "claude", "codex"];
 
     if (parts.length <= 1) return commands.filter((c) => c.startsWith(partial));
 
@@ -187,6 +194,25 @@ export function Terminal({
       return (dirs[currentDir] || []).filter((e) => e.endsWith("/") && e.startsWith(arg));
     }
 
+    // Handle path-prefixed args like "blog/hel" or "projects/"
+    const slashIdx = arg.lastIndexOf("/");
+    if (slashIdx >= 0) {
+      const dirPrefix = arg.slice(0, slashIdx);
+      const filePrefix = arg.slice(slashIdx + 1);
+      const targetDir = cwd === "~" ? dirPrefix : `${cwd}/${dirPrefix}`;
+      const dirEntries = dirs[targetDir] || [];
+      const candidates: string[] = [...dirEntries];
+      for (const key of Object.keys(fs)) {
+        if (key.startsWith(targetDir + "/")) {
+          const relative = key.slice(targetDir.length + 1);
+          if (!relative.includes("/") && !candidates.includes(relative)) candidates.push(relative);
+        }
+      }
+      return candidates
+        .filter((f) => f.startsWith(filePrefix))
+        .map((f) => `${dirPrefix}/${f}`);
+    }
+
     const currentDir = cwd === "~" ? "~" : cwd;
     const entries = dirs[currentDir] || [];
     const allFiles: string[] = [...entries];
@@ -200,6 +226,82 @@ export function Terminal({
     }
     return allFiles.filter((f) => f.startsWith(arg));
   }, [cwd, dirs, fs]);
+
+  const currentPrompt = chatMode ? "user> " : cwd === "~" ? "$ " : `${cwd} $ `;
+
+  const MSG_CHAR_LIMIT = 1000;
+
+  /* ── Agent chat ── */
+  const sendChatMessage = useCallback(async (userMessage: string, oneShot = false, displayCmd?: string) => {
+    // Client-side truncation with notice
+    let msg = userMessage;
+    let truncNotice = "";
+    if (msg.length > MSG_CHAR_LIMIT) {
+      msg = msg.slice(0, MSG_CHAR_LIMIT);
+      truncNotice = `(message trimmed to ${MSG_CHAR_LIMIT} characters)\n`;
+    }
+
+    const nextMessages = [...chatMessages, { role: "user" as const, content: msg }];
+    if (!oneShot) setChatMessages(nextMessages);
+
+    const prompt = oneShot ? currentPrompt : "user> ";
+    const cmdLabel = displayCmd ?? userMessage;
+
+    // Show user prompt immediately (with truncation notice if applicable)
+    setHistory((prev) => [...prev, { prompt, command: cmdLabel, output: truncNotice }]);
+    setIsStreaming(true);
+    setStreamingOutput("");
+
+    try {
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: nextMessages, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Request failed" }));
+        const errorMsg = err.error ?? `Error: ${res.status}`;
+        // Replace last entry with error
+        setHistory((prev) => [...prev.slice(0, -1), { prompt, command: cmdLabel, output: truncNotice + errorMsg }]);
+        setIsStreaming(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) { setIsStreaming(false); return; }
+
+      const decoder = new TextDecoder();
+      let full = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        setStreamingOutput(full);
+      }
+
+      // Replace last entry with final output (preserve truncation notice)
+      setHistory((prev) => [...prev.slice(0, -1), { prompt, command: cmdLabel, output: truncNotice + (full || "(no response)") }]);
+      if (!oneShot) setChatMessages((prev) => [...prev, { role: "user", content: msg }, { role: "assistant", content: full }]);
+      setStreamingOutput("");
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        const partial = streamingOutput;
+        setHistory((prev) => [...prev.slice(0, -1), { prompt, command: cmdLabel, output: truncNotice + (partial ? partial + "\n(cancelled)" : "(cancelled)") }]);
+      } else {
+        setHistory((prev) => [...prev.slice(0, -1), { prompt, command: cmdLabel, output: truncNotice + "Connection error. Try again." }]);
+      }
+    } finally {
+      setStreamingOutput("");
+      setIsStreaming(false);
+      abortRef.current = null;
+    }
+  }, [chatMessages, currentPrompt, streamingOutput]);
 
   /* ── Command execution ── */
   const runCommand = useCallback((cmd: string): string => {
@@ -223,7 +325,7 @@ export function Terminal({
         const dir = arg ? resolvePath(arg) : cwd;
         const entries = dirs[dir] || dirs[dir.replace("/", "")];
         if (!entries) return `ls: ${arg || dir}: No such file or directory`;
-        if (entries.length === 0) return "(empty — click items on the left to populate)";
+        if (entries.length === 0) return "(empty)";
         return entries.join("  ");
       }
       case "cd": {
@@ -285,29 +387,89 @@ export function Terminal({
         return `${base}: this terminal is read-only. Try 'cat' instead.`;
       case "exit":
         return "Where would you even go?";
+      case "agent":
+      case "claude":
+      case "codex": {
+        if (arg) {
+          // Single-query mode: send message inline, don't enter chat mode
+          sendChatMessage(arg, true, `${base} ${arg}`);
+          return "__AGENT__";
+        }
+        // Enter interactive chat mode
+        setChatMode(true);
+        setChatMessages([]);
+        return "Entering agent mode. Ask me anything about Gabe.\nType 'exit' to leave.";
+      }
       default:
         return `command not found: ${base}\n\nType 'help' for available commands.`;
     }
-  }, [fs, dirs, urls, cwd, resolvePath, resolveFile, onThemeChange, theme]);
-
-  const currentPrompt = cwd === "~" ? "$ " : `${cwd} $ `;
+  }, [fs, dirs, urls, cwd, resolvePath, resolveFile, onThemeChange, theme, sendChatMessage]);
 
   /* ── Submit handler ── */
   const handleSubmit = useCallback(() => {
+    if (isStreaming) return;
+
     const cmd = inputValue.trim();
-    const promptSnapshot = currentPrompt;
     setInputValue("");
     setHistoryIdx(-1);
     if (!cmd) return;
     setCmdHistory((prev) => [cmd, ...prev]);
+
+    // Chat mode handling
+    if (chatMode) {
+      if (cmd.toLowerCase() === "exit" || cmd.toLowerCase() === "quit") {
+        setChatMode(false);
+        setChatMessages([]);
+        setHistory((prev) => [...prev, { prompt: "user> ", command: cmd, output: "Leaving agent mode." }]);
+        return;
+      }
+      if (cmd.toLowerCase() === "clear") { setHistory([]); return; }
+      // Send as chat message
+      sendChatMessage(cmd);
+      return;
+    }
+
     const output = runCommand(cmd);
     if (output === "__CLEAR__") { setHistory([]); return; }
-    setHistory((prev) => [...prev, { prompt: promptSnapshot, command: cmd, output }]);
-  }, [inputValue, runCommand, currentPrompt]);
+    if (output === "__AGENT__") return; // handled by sendChatMessage
+    setHistory((prev) => [...prev, { prompt: currentPrompt, command: cmd, output }]);
+  }, [inputValue, runCommand, currentPrompt, chatMode, isStreaming, sendChatMessage]);
 
   /* ── Key handler ── */
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (autoPhase !== "idle") return;
+    // Ctrl+C: cancel streaming, clear input, or double-press to exit chat
+    if (e.key === "c" && e.ctrlKey) {
+      e.preventDefault();
+      if (isStreaming) { abortRef.current?.abort(); return; }
+      if (inputValue) { setInputValue(""); return; }
+      // In chat mode with empty input: double Ctrl+C exits
+      if (chatMode) {
+        const now = Date.now();
+        if (now - lastCtrlCRef.current < 1000) {
+          setChatMode(false);
+          setChatMessages([]);
+          setHistory((prev) => [...prev, { prompt: "user> ", command: "^C", output: "Leaving agent mode." }]);
+          lastCtrlCRef.current = 0;
+          return;
+        }
+        lastCtrlCRef.current = now;
+        setHistory((prev) => [...prev, { prompt: "user> ", command: "^C", output: "(press Ctrl+C again to exit agent mode)" }]);
+        return;
+      }
+      setHistory((prev) => [...prev, { prompt: currentPrompt, command: "^C", output: "" }]);
+      return;
+    }
+    // Ctrl+D: exit agent mode
+    if (e.key === "d" && e.ctrlKey && chatMode) {
+      e.preventDefault();
+      if (isStreaming) abortRef.current?.abort();
+      setChatMode(false);
+      setChatMessages([]);
+      setHistory((prev) => [...prev, { prompt: "user> ", command: "^D", output: "Leaving agent mode." }]);
+      return;
+    }
+    if (isStreaming) return;
     if (e.key === "Enter") { handleSubmit(); return; }
     if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -338,7 +500,7 @@ export function Terminal({
         setHistory((prev) => [...prev, { prompt: currentPrompt, command: inputValue, output: completions.join("  ") }]);
       }
     }
-  }, [inputValue, cmdHistory, historyIdx, autoPhase, handleSubmit, getCompletions, currentPrompt]);
+  }, [inputValue, cmdHistory, historyIdx, autoPhase, handleSubmit, getCompletions, currentPrompt, isStreaming, chatMode]);
 
   /* ── Auto-type lifecycle ── */
   useEffect(() => {
@@ -372,6 +534,14 @@ export function Terminal({
     const fileName = fileKey.replace("cat ", "");
     setDynamicFiles((prev) => ({ ...prev, [fileName]: activeFile.content }));
 
+    // Exit agent mode if active
+    if (chatMode) {
+      if (isStreaming) abortRef.current?.abort();
+      setChatMode(false);
+      setChatMessages([]);
+      setHistory((prev) => [...prev, { prompt: "user> ", command: "", output: "Leaving agent mode." }]);
+    }
+
     if (autoPhase !== "idle" && (autoCommand || autoOutput)) {
       setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
     }
@@ -394,73 +564,23 @@ export function Terminal({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   });
 
-  const focusInput = () => inputRef.current?.focus();
+  const focusInput = () => {
+    const sel = window.getSelection();
+    if (sel && sel.toString().length > 0) return;
+    inputRef.current?.focus();
+  };
 
-  /* ── Rendering helpers ── */
-  const linkify = useCallback((text: string) => {
-    // Match http(s) URLs and absolute paths like /easter-egg
-    const urlRegex = /(https?:\/\/[^\s)]+|\/[a-zA-Z][^\s)*]*)/g;
-    const parts = text.split(urlRegex);
-    return parts.map((part, j) => {
-      if (!urlRegex.test(part)) return <span key={j}>{part}</span>;
-      // Reset lastIndex since we reuse the regex
-      urlRegex.lastIndex = 0;
-      const isExternal = part.startsWith("http");
-      return (
-        <a
-          key={j}
-          href={part}
-          target={isExternal ? "_blank" : undefined}
-          rel={isExternal ? "noopener noreferrer" : undefined}
-          onClick={(e) => e.stopPropagation()}
-          className="text-blue-500 hover:text-blue-400 hover:underline transition-colors"
-        >{part}</a>
-      );
-    });
-  }, []);
+  /* ── Shared markdown renderer with terminal styles ── */
+  const mdStyles: MdStyles = useMemo(() => ({
+    headingColor: theme.termText,
+    textColor: theme.termText,
+    dimColor: theme.termDim,
+    isDark: theme.isDark,
+  }), [theme]);
 
   const renderLine = useCallback((text: string) => {
-    return text.split("\n").map((line, i) => {
-      // Inline image glyph: ![alt](src) — render as tiny icon next to text
-      const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
-      if (imgMatch) {
-        return (
-          <span key={i} className="inline-flex items-center">
-            <img src={imgMatch[2]} alt={imgMatch[1]} className="w-[14px] h-[14px] rounded-sm object-contain inline-block" />
-          </span>
-        );
-      }
-      // Heading with inline image: # Text ![alt](src)
-      const h1Img = line.match(/^# (.+?) !\[([^\]]*)\]\(([^)]+)\)$/);
-      if (h1Img) {
-        return (
-          <div key={i} className="font-semibold text-sm flex items-center gap-1.5" style={{ color: theme.termText }}>
-            <img src={h1Img[3]} alt={h1Img[2]} className="w-[14px] h-[14px] rounded-sm object-contain" />
-            {linkify(h1Img[1])}
-          </div>
-        );
-      }
-      // Partner logos line: {{logos:/path1.svg,/path2.svg,...}}
-      const logosMatch = line.match(/^\{\{logos:(.+)\}\}$/);
-      if (logosMatch) {
-        const paths = logosMatch[1].split(",");
-        return (
-          <div key={i} className="flex flex-wrap items-center gap-3 my-1">
-            {paths.map((p, j) => (
-              <img key={j} src={p.trim()} alt="" className="h-3.5 w-auto object-contain opacity-60" style={{ filter: theme.isDark ? "brightness(0) invert(0.7)" : undefined }} />
-            ))}
-          </div>
-        );
-      }
-      if (line.startsWith("# ")) return <div key={i} className="font-semibold text-sm" style={{ color: theme.termText }}>{linkify(line.slice(2))}</div>;
-      if (line.startsWith("## ")) return <div key={i} className="font-medium text-sm mt-3" style={{ color: theme.termText }}>{linkify(line.slice(3))}</div>;
-      if (line.startsWith("**") && line.endsWith("**")) return <div key={i} className="font-medium text-[13px]" style={{ color: theme.termText }}>{linkify(line.slice(2, -2))}</div>;
-      if (line.trimStart().startsWith("→")) return <div key={i} className="text-[13px]" style={{ color: theme.termDim }}>{linkify(line)}</div>;
-      if (line.trimStart().startsWith("-") || line.trimStart().startsWith("•")) return <div key={i} className="text-[13px]" style={{ color: theme.termDim }}>{linkify(line)}</div>;
-      if (line.trim() === "") return <div key={i} className="h-2" />;
-      return <div key={i} className="text-[13px] leading-relaxed" style={{ color: theme.termDim }}>{linkify(line)}</div>;
-    });
-  }, [linkify, theme]);
+    return renderMarkdown(text, mdStyles);
+  }, [mdStyles]);
 
   const isAutoTyping = autoPhase !== "idle";
 
@@ -494,7 +614,9 @@ export function Terminal({
             </svg>
           </button>
         </div>
-        <span className="text-[11px] ml-2 font-mono" style={{ color: theme.termDim }}>gabe@keller.cv {cwd === "~" ? "~" : `~/${cwd}`}</span>
+        <span className="text-[11px] ml-2 font-mono" style={{ color: theme.termDim }}>
+          {chatMode ? "gabe@keller.cv — agent" : `gabe@keller.cv ${cwd === "~" ? "~" : `~/${cwd}`}`}
+        </span>
       </div>
 
       {/* Terminal body */}
@@ -502,7 +624,7 @@ export function Terminal({
         {history.map((entry, i) => (
           <div key={i} className="mb-4">
             <div>
-              <span className="text-green-500 font-medium">{entry.prompt}</span>
+              <span className={entry.prompt === "user> " ? "text-blue-400 font-medium" : "text-green-500 font-medium"}>{entry.prompt}</span>
               <span style={{ color: theme.termText }}>{entry.command}</span>
             </div>
             {entry.output && <div className="mt-1">{renderLine(entry.output)}</div>}
@@ -524,11 +646,27 @@ export function Terminal({
           </div>
         )}
 
+        {/* Streaming agent output */}
+        {isStreaming && (
+          <div className="mb-4">
+            <div className="mt-1">
+              {streamingOutput
+                ? renderLine(streamingOutput)
+                : <span style={{ color: theme.termDim }} className="animate-pulse">thinking...</span>
+              }
+            </div>
+          </div>
+        )}
+
         {!isAutoTyping && (
           <div>
-            <span className="text-green-500 font-medium">{currentPrompt}</span>
+            <span className={chatMode ? "text-blue-400 font-medium" : "text-green-500 font-medium"}>{currentPrompt}</span>
             <span style={{ color: theme.termText }}>{inputValue}</span>
-            <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse" style={{ backgroundColor: theme.termText }} />
+            {isStreaming ? (
+              <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse ml-0.5" style={{ backgroundColor: "#60a5fa" }} />
+            ) : (
+              <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse" style={{ backgroundColor: theme.termText }} />
+            )}
           </div>
         )}
       </div>
@@ -538,7 +676,7 @@ export function Terminal({
         ref={inputRef}
         type="text"
         value={inputValue}
-        onChange={(e) => { if (!isAutoTyping) setInputValue(e.target.value); }}
+        onChange={(e) => { if (!isAutoTyping && !isStreaming) setInputValue(e.target.value); }}
         onKeyDown={handleKeyDown}
         className="sr-only"
         autoFocus

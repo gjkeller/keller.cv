@@ -1,7 +1,28 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Calendar, Clock } from "lucide-react";
 import { getBlogPosts } from "@/lib/mdx";
 import { BlogShell } from "./blog-shell";
+
+export const metadata: Metadata = {
+  title: "Blog",
+  description:
+    "Thoughts on software engineering, AI, and building with agents — by Gabriel Keller.",
+  openGraph: {
+    title: "Blog — Gabriel Keller",
+    description:
+      "Thoughts on software engineering, AI, and building with agents.",
+    url: "https://keller.cv/blog",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Blog — Gabriel Keller",
+    description:
+      "Thoughts on software engineering, AI, and building with agents.",
+  },
+  alternates: { canonical: "https://keller.cv/blog" },
+};
 
 export default function BlogPage() {
   const posts = getBlogPosts();

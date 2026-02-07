@@ -7,7 +7,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Gabriel Keller",
+  title: { default: "Gabriel Keller", template: "%s | Gabriel Keller" },
   description: "CS @ UT Austin · Building agent infrastructure",
   metadataBase: new URL("https://keller.cv"),
   openGraph: {
@@ -15,10 +15,11 @@ export const metadata: Metadata = {
     description: "CS @ UT Austin · Building agent infrastructure",
     url: "https://keller.cv",
     siteName: "Gabriel Keller",
+    locale: "en_US",
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     site: "@gabrieljkeller",
     creator: "@gabrieljkeller",
   },

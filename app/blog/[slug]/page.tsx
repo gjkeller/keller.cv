@@ -25,22 +25,61 @@ export async function generateMetadata({ params }: BlogPostPageProps) {
     };
   }
 
+  const ogImages = post.image
+    ? [{ url: post.image, alt: post.title }]
+    : undefined;
+
   return {
-    title: `${post.title} | Gabriel Keller`,
+    title: post.title,
     description: post.description || `Read ${post.title} by Gabriel Keller`,
     openGraph: {
       title: post.title,
       description: post.description,
+      url: `https://keller.cv/blog/${slug}`,
       type: "article",
       publishedTime: post.date,
       authors: [post.author || "Gabriel Keller"],
       tags: post.tags,
+      ...(ogImages && { images: ogImages }),
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
+      ...(ogImages && { images: ogImages }),
     },
+    alternates: { canonical: `https://keller.cv/blog/${slug}` },
+  };
+}
+
+function buildArticleJsonLd(post: {
+  title: string;
+  description?: string;
+  date: string;
+  author?: string;
+  image?: string;
+  tags?: string[];
+  slug: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.date,
+    author: {
+      "@type": "Person",
+      name: post.author || "Gabriel Keller",
+      url: "https://keller.cv",
+    },
+    publisher: {
+      "@type": "Person",
+      name: "Gabriel Keller",
+      url: "https://keller.cv",
+    },
+    url: `https://keller.cv/blog/${post.slug}`,
+    ...(post.image && { image: `https://keller.cv${post.image}` }),
+    ...(post.tags && { keywords: post.tags.join(", ") }),
   };
 }
 
@@ -52,9 +91,17 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     notFound();
   }
 
+  const jsonLd = buildArticleJsonLd({ ...post, slug });
+
   return (
-    <BlogPostClient post={post}>
-      <MDXContent content={post.content} />
-    </BlogPostClient>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <BlogPostClient post={post}>
+        <MDXContent content={post.content} />
+      </BlogPostClient>
+    </>
   );
 }

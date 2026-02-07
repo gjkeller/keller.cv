@@ -140,6 +140,7 @@ export function InteractiveLayout({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(true);
+  const [terminalFullscreen, setTerminalFullscreen] = useState(false);
   const [themeIdx, setThemeIdx] = useState(0);
 
   const theme = THEMES[themeIdx];
@@ -177,10 +178,14 @@ export function InteractiveLayout({
         .ghost-card:active { box-shadow: var(--active-shadow); }
       `}</style>
 
-      {/* Content column — animates between centered and left-aligned */}
+      {/* Content column — animates between centered and left-aligned, fades on fullscreen */}
       <div
         className="px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
-        style={{ maxWidth: terminalOpen ? "50vw" : "100vw" }}
+        style={{
+          maxWidth: terminalOpen && !terminalFullscreen ? "50vw" : "100vw",
+          opacity: terminalFullscreen ? 0 : 1,
+          pointerEvents: terminalFullscreen ? "none" : "auto",
+        }}
       >
         <div className="max-w-[480px] mx-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
           <header>
@@ -331,16 +336,21 @@ export function InteractiveLayout({
       </div>
 
       {/* Terminal */}
-      <div className={`hidden lg:block fixed left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        terminalOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
+      <div className={`hidden lg:block fixed transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        !terminalOpen
+          ? "opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
+          : terminalFullscreen
+            ? "opacity-100 scale-100 inset-6 w-auto h-auto ml-0 translate-y-0 top-0 left-0 z-50"
+            : "opacity-100 scale-100 left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
       }`}>
         <Terminal
           activeFile={activeFile}
           initialFiles={initialFiles.files}
           initialUrls={initialFiles.urls}
           theme={theme}
-          onClose={() => setTerminalOpen(false)}
-          onMinimize={() => setTerminalOpen(false)}
+          onClose={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
+          onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
+          onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
           onThemeChange={handleThemeChange}
         />
       </div>

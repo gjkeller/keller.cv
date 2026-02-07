@@ -19,6 +19,7 @@ interface TerminalProps {
   theme: Theme;
   onClose?: () => void;
   onMinimize?: () => void;
+  onExpand?: () => void;
   onThemeChange?: (name: string) => void;
 }
 
@@ -156,13 +157,12 @@ function useTypewriter(text: string, speed: number = 8) {
 }
 
 /* ── Terminal component ── */
-export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, theme, onClose, onMinimize, onThemeChange }: TerminalProps) {
+export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, theme, onClose, onMinimize, onExpand, onThemeChange }: TerminalProps) {
   const dark = theme.isDark;
   const [history, setHistory] = useState<{ prompt: string; command: string; output: string }[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [dynamicFiles, setDynamicFiles] = useState<Record<string, string>>(initialFiles);
   const [dynamicUrls, setDynamicUrls] = useState<Record<string, string>>(initialUrls);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [cwd, setCwd] = useState("~");
 
   // Command history for up/down arrows
@@ -523,7 +523,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
             <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#995700" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="6" x2="11" y2="6" /></svg>
           </button>
           {/* Expand */}
-          <button onClick={(e) => { e.stopPropagation(); setIsFullscreen(!isFullscreen); }} className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29] flex items-center justify-center hover:brightness-110 transition" aria-label="Fullscreen">
+          <button onClick={(e) => { e.stopPropagation(); onExpand?.(); }} className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29] flex items-center justify-center hover:brightness-110 transition" aria-label="Fullscreen">
             <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#006500" strokeWidth="1.5">
               {/* Diagonal expand arrows */}
               <polyline points="8,1 11,1 11,4" /><polyline points="4,11 1,11 1,8" />

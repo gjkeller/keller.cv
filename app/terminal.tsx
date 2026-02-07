@@ -398,13 +398,25 @@ export function Terminal({
 
   /* ── Rendering helpers ── */
   const linkify = useCallback((text: string) => {
-    const urlRegex = /(https?:\/\/[^\s)]+)/g;
+    // Match http(s) URLs and absolute paths like /easter-egg
+    const urlRegex = /(https?:\/\/[^\s)]+|\/[a-zA-Z][^\s)*]*)/g;
     const parts = text.split(urlRegex);
-    return parts.map((part, j) =>
-      urlRegex.test(part) ? (
-        <a key={j} href={part} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-500 hover:text-blue-400 hover:underline transition-colors">{part}</a>
-      ) : (<span key={j}>{part}</span>)
-    );
+    return parts.map((part, j) => {
+      if (!urlRegex.test(part)) return <span key={j}>{part}</span>;
+      // Reset lastIndex since we reuse the regex
+      urlRegex.lastIndex = 0;
+      const isExternal = part.startsWith("http");
+      return (
+        <a
+          key={j}
+          href={part}
+          target={isExternal ? "_blank" : undefined}
+          rel={isExternal ? "noopener noreferrer" : undefined}
+          onClick={(e) => e.stopPropagation()}
+          className="text-blue-500 hover:text-blue-400 hover:underline transition-colors"
+        >{part}</a>
+      );
+    });
   }, []);
 
   const renderLine = useCallback((text: string) => {

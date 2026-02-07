@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import type { WorkItem, HackathonWin } from "@/lib/data";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon, CalendarIcon } from "./icons";
-import { Terminal } from "./terminal";
+import { Terminal, THEME_NAMES } from "./terminal";
 
 const socialIcons: Record<string, React.ReactNode> = {
   GitHub: <GithubIcon />, LinkedIn: <LinkedinIcon />, X: <XIcon />, Devpost: <DevpostIcon />,
@@ -21,7 +21,7 @@ interface Props {
 }
 
 /* ── Theme presets ── */
-interface Theme {
+export interface Theme {
   name: string;
   bg: string;
   text: string;
@@ -40,9 +40,9 @@ interface Theme {
   isDark: boolean;
 }
 
-const THEMES: Theme[] = [
+export const THEMES: Theme[] = [
   {
-    name: "Light",
+    name: "light",
     bg: "#FAFAFA", text: "#111827", textDim: "#6B7280", textMuted: "#9CA3AF",
     border: "#E5E7EB", cardHoverBg: "#EEEEF0", cardHoverBorder: "rgba(209,213,219,0.6)",
     cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.08), inset -1px -1px 3px rgba(255,255,255,0.7)",
@@ -51,7 +51,7 @@ const THEMES: Theme[] = [
     termText: "#1F2937", termDim: "#6B7280", isDark: false,
   },
   {
-    name: "Dark Blue",
+    name: "dark-blue",
     bg: "#0F172A", text: "#E2E8F0", textDim: "#94A3B8", textMuted: "#64748B",
     border: "#1E293B", cardHoverBg: "#1E293B", cardHoverBorder: "rgba(51,65,85,0.6)",
     cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.3), inset -1px -1px 3px rgba(255,255,255,0.03)",
@@ -60,7 +60,7 @@ const THEMES: Theme[] = [
     termText: "#E2E8F0", termDim: "#94A3B8", isDark: true,
   },
   {
-    name: "Dark Gray",
+    name: "dark-gray",
     bg: "#18181B", text: "#F4F4F5", textDim: "#A1A1AA", textMuted: "#71717A",
     border: "#27272A", cardHoverBg: "#27272A", cardHoverBorder: "rgba(63,63,70,0.6)",
     cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.3), inset -1px -1px 3px rgba(255,255,255,0.03)",
@@ -69,7 +69,7 @@ const THEMES: Theme[] = [
     termText: "#F4F4F5", termDim: "#A1A1AA", isDark: true,
   },
   {
-    name: "Warm",
+    name: "warm",
     bg: "#F5F0EB", text: "#1C1917", textDim: "#78716C", textMuted: "#A8A29E",
     border: "#E7E5E4", cardHoverBg: "#EDE8E3", cardHoverBorder: "rgba(214,211,209,0.6)",
     cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.06), inset -1px -1px 3px rgba(255,255,255,0.7)",
@@ -78,7 +78,7 @@ const THEMES: Theme[] = [
     termText: "#1C1917", termDim: "#78716C", isDark: false,
   },
   {
-    name: "Midnight",
+    name: "midnight",
     bg: "#020617", text: "#CBD5E1", textDim: "#64748B", textMuted: "#475569",
     border: "#0F172A", cardHoverBg: "#0F172A", cardHoverBorder: "rgba(30,41,59,0.8)",
     cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.5), inset -1px -1px 3px rgba(255,255,255,0.02)",
@@ -141,11 +141,14 @@ export function InteractiveLayout({
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [themeIdx, setThemeIdx] = useState(0);
-  const [debugOpen, setDebugOpen] = useState(false);
 
   const theme = THEMES[themeIdx];
-  const isDev = typeof window !== "undefined" && window.location.hostname === "localhost";
   const initialFiles = useMemo(() => buildInitialFiles(currentWork, hackathons, posts), [currentWork, hackathons, posts]);
+
+  const handleThemeChange = useCallback((themeName: string) => {
+    const idx = THEMES.findIndex((t) => t.name === themeName);
+    if (idx !== -1) setThemeIdx(idx);
+  }, []);
 
   const handleClick = useCallback((type: string, id: string) => {
     const key = `${type}-${id}`;
@@ -169,48 +172,17 @@ export function InteractiveLayout({
 
   return (
     <main className="min-h-screen transition-colors duration-300" style={{ backgroundColor: theme.bg }}>
-      {/* Debug panel — dev only */}
-      {isDev && (
-        <div className="fixed top-4 left-4 z-[100]">
-          <button
-            onClick={() => setDebugOpen(!debugOpen)}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors"
-            style={{ backgroundColor: theme.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)", color: theme.textDim }}
-          >
-            {debugOpen ? "✕ Close" : "⚙ Theme"}
-          </button>
-          {debugOpen && (
-            <div className="mt-2 p-3 rounded-xl border backdrop-blur-md w-48" style={{ backgroundColor: theme.isDark ? "rgba(15,23,42,0.95)" : "rgba(255,255,255,0.95)", borderColor: theme.border }}>
-              <p className="text-[10px] uppercase tracking-wider mb-2 font-medium" style={{ color: theme.textMuted }}>Color Theme</p>
-              <div className="space-y-1">
-                {THEMES.map((t, i) => (
-                  <button
-                    key={t.name}
-                    onClick={() => setThemeIdx(i)}
-                    className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs transition-colors"
-                    style={{
-                      backgroundColor: i === themeIdx ? (theme.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)") : "transparent",
-                      color: i === themeIdx ? theme.text : theme.textDim,
-                    }}
-                  >
-                    <div className="w-3 h-3 rounded-full border" style={{ backgroundColor: t.bg, borderColor: t.border }} />
-                    {t.name}
-                    {i === themeIdx && <span className="ml-auto">●</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       <style>{`
         .ghost-card:hover { background-color: var(--hover-bg); border-color: var(--hover-border); box-shadow: var(--hover-shadow); }
         .ghost-card:active { box-shadow: var(--active-shadow); }
       `}</style>
 
-      <div className="px-8 py-16 sm:py-24 lg:max-w-[50vw]">
-        <div className="max-w-[480px] mx-auto lg:mx-auto">
+      {/* Content column — animates between centered and left-aligned */}
+      <div
+        className="px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={{ maxWidth: terminalOpen ? "50vw" : "100vw" }}
+      >
+        <div className="max-w-[480px] mx-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
           <header>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -227,6 +199,13 @@ export function InteractiveLayout({
             </div>
             <p className="text-[15px] mt-6 leading-relaxed" style={{ color: theme.textDim }}>{bio}</p>
           </header>
+
+          {/* Open terminal button — shows above first hr when terminal is closed */}
+          {!terminalOpen && (
+            <button onClick={() => setTerminalOpen(true)} className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:text-blue-500 mt-6" style={{ color: theme.text }}>
+              <TerminalIcon />Open terminal &rarr;
+            </button>
+          )}
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
@@ -338,18 +317,11 @@ export function InteractiveLayout({
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
-          <section className="space-y-3">
+          <section>
             <p className="text-[15px]" style={{ color: theme.textDim }}>Always happy to grab a coffee or jump on a quick call.</p>
-            <div className="flex flex-col gap-2">
-              <a href={calLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:text-blue-500" style={{ color: theme.text }}>
-                <CalendarIcon />Grab a coffee &rarr;
-              </a>
-              {!terminalOpen && (
-                <button onClick={() => setTerminalOpen(true)} className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:text-blue-500 text-left" style={{ color: theme.text }}>
-                  <TerminalIcon />Open terminal &rarr;
-                </button>
-              )}
-            </div>
+            <a href={calLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:text-blue-500 mt-4" style={{ color: theme.text }}>
+              <CalendarIcon />Grab a coffee &rarr;
+            </a>
           </section>
 
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
@@ -369,6 +341,7 @@ export function InteractiveLayout({
           theme={theme}
           onClose={() => setTerminalOpen(false)}
           onMinimize={() => setTerminalOpen(false)}
+          onThemeChange={handleThemeChange}
         />
       </div>
     </main>

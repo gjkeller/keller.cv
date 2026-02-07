@@ -19,7 +19,10 @@ interface TerminalProps {
   theme: Theme;
   onClose?: () => void;
   onMinimize?: () => void;
+  onThemeChange?: (name: string) => void;
 }
+
+export const THEME_NAMES = ["light", "dark-blue", "dark-gray", "warm", "midnight"];
 
 /* ── Virtual filesystem ── */
 const FILES: Record<string, string> = {
@@ -111,10 +114,11 @@ const HELP_TEXT = `Available commands:
   pwd           Print working directory
   whoami        Who am I?
   clear         Clear terminal
+  theme         Change the color theme
   man <cmd>     Manual for a command
 
 Files are populated as you click items on the left.
-Try: ls, cat welcome.md, cat about.md`;
+Try: ls, cat welcome.md, theme --list`;
 
 const MAN_PAGES: Record<string, string> = {
   ls: "ls - list directory contents\n\nUsage: ls [directory]\n\nList files in the current or specified directory.",
@@ -126,6 +130,7 @@ const MAN_PAGES: Record<string, string> = {
   whoami: "whoami - display effective user id\n\nUsage: whoami\n\nPrint the user name associated with the current session.",
   clear: "clear - clear the terminal screen\n\nUsage: clear\n\nRemoves all previous output from the terminal.",
   man: "man - format and display manual pages\n\nUsage: man <command>\n\nDisplay the manual page for the specified command.",
+  theme: "theme - change the color theme\n\nUsage:\n  theme --list       List available themes\n  theme --set <name> Set the active theme\n  theme --help       Show this help\n\nAvailable themes: light, dark-blue, dark-gray, warm, midnight",
 };
 
 /* ── Typewriter for auto-typed content ── */
@@ -151,9 +156,9 @@ function useTypewriter(text: string, speed: number = 8) {
 }
 
 /* ── Terminal component ── */
-export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, theme, onClose, onMinimize }: TerminalProps) {
+export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, theme, onClose, onMinimize, onThemeChange }: TerminalProps) {
   const dark = theme.isDark;
-  const [history, setHistory] = useState<{ command: string; output: string }[]>([]);
+  const [history, setHistory] = useState<{ prompt: string; command: string; output: string }[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [dynamicFiles, setDynamicFiles] = useState<Record<string, string>>(initialFiles);
   const [dynamicUrls, setDynamicUrls] = useState<Record<string, string>>(initialUrls);
@@ -202,7 +207,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
   // Get all completable tokens (files + dirs + commands)
   const getCompletions = useCallback((partial: string): string[] => {
     const parts = partial.split(/\s+/);
-    const commands = ["help", "ls", "ll", "cat", "open", "cd", "pwd", "whoami", "clear", "man", "echo", "date"];
+    const commands = ["help", "ls", "ll", "cat", "open", "cd", "pwd", "whoami", "clear", "man", "echo", "date", "theme"];
 
     // Completing the command itself
     if (parts.length <= 1) {
@@ -290,6 +295,22 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
         if (!page) return `No manual entry for ${arg}`;
         return page;
       }
+      case "theme": {
+        if (!arg || arg === "--help") return MAN_PAGES["theme"];
+        if (arg === "--list" || arg === "-l") return `Available themes:\n\n${THEME_NAMES.map((n) => `  ${n === theme.name ? "● " : "  "}${n}${n === theme.name ? " (active)" : ""}`).join("\n")}\n\nUsage: theme --set <name>`;
+        if (arg.startsWith("--set ") || arg.startsWith("-s ")) {
+          const themeName = arg.replace(/^--(set|s)\s+/, "").replace(/^-s\s+/, "").trim();
+          if (!THEME_NAMES.includes(themeName)) return `theme: unknown theme '${themeName}'\n\nAvailable: ${THEME_NAMES.join(", ")}`;
+          onThemeChange?.(themeName);
+          return `Theme set to '${themeName}'`;
+        }
+        // Bare theme name without --set
+        if (THEME_NAMES.includes(arg)) {
+          onThemeChange?.(arg);
+          return `Theme set to '${arg}'`;
+        }
+        return `theme: unknown option '${arg}'\n\nTry: theme --help`;
+      }
       case "echo":
         return arg;
       case "date":
@@ -307,17 +328,19 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
       default:
         return `command not found: ${base}\n\nType 'help' for available commands.`;
     }
-  }, [fs, dirs, urls, cwd, resolvePath, resolveFile]);
+  }, [fs, dirs, urls, cwd, resolvePath, resolveFile, onThemeChange, theme.name]);
+
+  const currentPrompt = cwd === "~" ? "$ " : `${cwd} $ `;
 
   // Handle user typing Enter
   const handleSubmit = useCallback(() => {
     const cmd = inputValue.trim();
+    const promptSnapshot = currentPrompt;
     setInputValue("");
     setHistoryIdx(-1);
 
     if (!cmd) return;
 
-    // Push to command history
     setCmdHistory((prev) => [cmd, ...prev]);
 
     const output = runCommand(cmd);
@@ -326,8 +349,8 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
       return;
     }
 
-    setHistory((prev) => [...prev, { command: cmd, output }]);
-  }, [inputValue, runCommand]);
+    setHistory((prev) => [...prev, { prompt: promptSnapshot, command: cmd, output }]);
+  }, [inputValue, runCommand, currentPrompt]);
 
   // Key handler for arrows + tab
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -379,7 +402,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
         }
       } else if (completions.length > 1) {
         // Show possible completions
-        setHistory((prev) => [...prev, { command: inputValue, output: completions.join("  ") }]);
+        setHistory((prev) => [...prev, { prompt: currentPrompt, command: inputValue, output: completions.join("  ") }]);
       }
       return;
     }
@@ -393,12 +416,12 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
   // Auto-type: output done → push to history
   useEffect(() => {
     if (autoPhase === "typing-output" && outputTyper.done) {
-      setHistory((prev) => [...prev, { command: autoCommand, output: autoOutput }]);
+      setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
       setAutoCommand("");
       setAutoOutput("");
       setAutoPhase("idle");
     }
-  }, [autoPhase, outputTyper.done, autoCommand, autoOutput]);
+  }, [autoPhase, outputTyper.done, autoCommand, autoOutput, currentPrompt]);
 
   // Initial welcome
   useEffect(() => {
@@ -421,7 +444,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
     // Flush current auto-type if running
     if (autoPhase !== "idle") {
       if (autoCommand || autoOutput) {
-        setHistory((prev) => [...prev, { command: autoCommand, output: autoOutput }]);
+        setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
       }
     }
 
@@ -448,8 +471,6 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
 
   // Focus input when clicking terminal body
   const focusInput = () => inputRef.current?.focus();
-
-  const prompt = cwd === "~" ? "$ " : `${cwd} $ `;
 
   const linkify = useCallback((text: string) => {
     const urlRegex = /(https?:\/\/[^\s)]+)/g;
@@ -517,7 +538,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
         {history.map((entry, i) => (
           <div key={i} className="mb-4">
             <div>
-              <span className="text-green-500 font-medium">{prompt}</span>
+              <span className="text-green-500 font-medium">{entry.prompt}</span>
               <span style={{ color: theme.termText }}>{entry.command}</span>
             </div>
             {entry.output && <div className="mt-1">{renderLine(entry.output)}</div>}
@@ -527,7 +548,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
         {isAutoTyping && (
           <div className="mb-4">
             <div>
-              <span className="text-green-500 font-medium">{prompt}</span>
+              <span className="text-green-500 font-medium">{currentPrompt}</span>
               <span style={{ color: theme.termText }}>
                 {autoPhase === "typing-cmd" ? cmdTyper.displayed : autoCommand}
               </span>
@@ -541,7 +562,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
 
         {!isAutoTyping && (
           <div>
-            <span className="text-green-500 font-medium">{prompt}</span>
+            <span className="text-green-500 font-medium">{currentPrompt}</span>
             <span style={{ color: theme.termText }}>{inputValue}</span>
             <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse" style={{ backgroundColor: theme.termText }} />
           </div>

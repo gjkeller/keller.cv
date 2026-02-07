@@ -324,29 +324,33 @@ export function InteractiveLayout({
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
           <section>
-            <p className="text-[15px] mb-4" style={{ color: theme.textDim }}>Always happy to grab a coffee or jump on a quick call.</p>
+            <p className="text-[15px] mb-4" style={{ color: theme.textDim }}>Always happy to chat. Book some time and let&apos;s connect.</p>
             <div className="grid grid-cols-2 gap-3">
               <a
                 href={calLink15}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`${cardClass} ghost-card flex flex-col items-center justify-center py-6 text-center`}
+                className={`${cardClass} ghost-card flex items-center gap-3 py-3`}
                 style={cardStyle}
               >
-                <CalendarIcon />
-                <span className="font-medium text-[15px] mt-2" style={{ color: theme.text }}>Quick chat</span>
-                <span className="text-xs mt-0.5" style={{ color: theme.textMuted }}>15 minutes</span>
+                <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
+                <div>
+                  <span className="font-medium text-[14px]" style={{ color: theme.text }}>Quick call</span>
+                  <span className="text-xs block" style={{ color: theme.textMuted }}>15 min</span>
+                </div>
               </a>
               <a
                 href={calLink30}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`${cardClass} ghost-card flex flex-col items-center justify-center py-6 text-center`}
+                className={`${cardClass} ghost-card flex items-center gap-3 py-3`}
                 style={cardStyle}
               >
-                <CalendarIcon />
-                <span className="font-medium text-[15px] mt-2" style={{ color: theme.text }}>Grab a coffee</span>
-                <span className="text-xs mt-0.5" style={{ color: theme.textMuted }}>30 minutes</span>
+                <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                <div>
+                  <span className="font-medium text-[14px]" style={{ color: theme.text }}>Deep dive</span>
+                  <span className="text-xs block" style={{ color: theme.textMuted }}>30 min</span>
+                </div>
               </a>
             </div>
           </section>

@@ -72,10 +72,23 @@ export function InteractiveLayout({
     return () => mql.removeEventListener("change", handler);
   }, []);
 
-  // Lock body scroll when mobile terminal is open
+  // Lock body scroll + track visual viewport height for mobile terminal
+  const [mobileVh, setMobileVh] = useState<number | null>(null);
   useEffect(() => {
     if (!isDesktop && terminalOpen) {
       document.body.style.overflow = 'hidden';
+      const vv = window.visualViewport;
+      if (vv) {
+        const update = () => setMobileVh(vv.height);
+        update();
+        vv.addEventListener("resize", update);
+        vv.addEventListener("scroll", update);
+        return () => {
+          document.body.style.overflow = '';
+          vv.removeEventListener("resize", update);
+          vv.removeEventListener("scroll", update);
+        };
+      }
       return () => { document.body.style.overflow = ''; };
     }
   }, [isDesktop, terminalOpen]);
@@ -401,7 +414,7 @@ export function InteractiveLayout({
           />
         </div>
       ) : terminalOpen ? (
-        <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 overflow-hidden" style={{ backgroundColor: theme.termBg }}>
+        <div className="fixed top-0 left-0 right-0 z-50 overflow-hidden" style={{ backgroundColor: theme.termBg, height: mobileVh ? `${mobileVh}px` : '100dvh' }}>
           <Terminal
             activeFile={activeFile}
             staticFiles={allFiles}

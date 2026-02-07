@@ -358,7 +358,7 @@ function Section({ title, theme, children }: { title: string; theme: Theme; chil
 function MobileDetail({ open, theme, children }: { open: boolean; theme: Theme; children: React.ReactNode }) {
   return (
     <div className={`lg:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
-      <div className="px-3 pb-3 pt-1">{children}</div>
+      <div className="pb-3 pt-1">{children}</div>
     </div>
   );
 }

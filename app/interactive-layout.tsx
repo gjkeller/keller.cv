@@ -72,24 +72,42 @@ export function InteractiveLayout({
     return () => mql.removeEventListener("change", handler);
   }, []);
 
-  // Lock body scroll + track visual viewport height for mobile terminal
+  // Lock body scroll + track visual viewport for mobile terminal (iOS-safe)
   const [mobileVh, setMobileVh] = useState<number | null>(null);
+  const [mobileVOffset, setMobileVOffset] = useState(0);
   useEffect(() => {
     if (!isDesktop && terminalOpen) {
+      document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.touchAction = 'none';
       const vv = window.visualViewport;
       if (vv) {
-        const update = () => setMobileVh(vv.height);
+        const update = () => {
+          setMobileVh(vv.height);
+          setMobileVOffset(vv.offsetTop);
+        };
         update();
         vv.addEventListener("resize", update);
         vv.addEventListener("scroll", update);
         return () => {
+          document.documentElement.style.overflow = '';
           document.body.style.overflow = '';
+          document.body.style.position = '';
+          document.body.style.width = '';
+          document.body.style.touchAction = '';
           vv.removeEventListener("resize", update);
           vv.removeEventListener("scroll", update);
         };
       }
-      return () => { document.body.style.overflow = ''; };
+      return () => {
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.touchAction = '';
+      };
     }
   }, [isDesktop, terminalOpen]);
 
@@ -273,19 +291,17 @@ export function InteractiveLayout({
               </div>
             </div>
 
-            {/* Terminal link — mobile: collapses when terminal open */}
-            <div className={`grid lg:hidden transition-all duration-300 ${terminalOpen ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
-              <div className="overflow-hidden">
-                <button
-                  onClick={() => setTerminalOpen(true)}
-                  className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-300 border border-transparent ghost-card"
-                  style={{ ...cardStyle, color: theme.text }}
-                >
-                  <TerminalIcon />
-                  Access bash terminal
-                </button>
-              </div>
-            </div>
+            {/* Terminal link — mobile: show/hide immediately, no animation */}
+            {!terminalOpen && (
+              <button
+                onClick={() => setTerminalOpen(true)}
+                className="lg:hidden inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer border border-transparent ghost-card"
+                style={{ ...cardStyle, color: theme.text }}
+              >
+                <TerminalIcon />
+                Access bash terminal
+              </button>
+            )}
           </header>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
@@ -414,7 +430,7 @@ export function InteractiveLayout({
           />
         </div>
       ) : terminalOpen ? (
-        <div className="fixed top-0 left-0 right-0 z-50 overflow-hidden" style={{ backgroundColor: theme.termBg, height: mobileVh ? `${mobileVh}px` : '100dvh' }}>
+        <div className="fixed left-0 w-full z-50 overflow-hidden" style={{ backgroundColor: theme.termBg, top: 0, height: mobileVh ? `${mobileVh}px` : '100dvh', transform: mobileVOffset ? `translateY(${mobileVOffset}px)` : undefined }}>
           <Terminal
             activeFile={activeFile}
             staticFiles={allFiles}

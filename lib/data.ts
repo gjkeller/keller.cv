@@ -122,12 +122,12 @@ export const siteData: SiteData = {
   acmSales: {
     detail: "As head of sales for Texas ACM, I 2.5x'd our yearly sponsorship revenue and raised a total of $45,000 from corporate partners.",
     partners: [
-      { name: "Atlassian", logo: "/images/partners/atlassian.svg", tier: "platinum" },
-      { name: "Accenture", logo: "/images/partners/accenture.svg", tier: "gold" },
+      { name: "Atlassian", logo: "/images/partners/atlassian.png", tier: "platinum" },
+      { name: "Accenture", logo: "/images/partners/accenture.png", tier: "gold" },
       { name: "FUTO", logo: "/images/partners/futo.svg", tier: "gold" },
-      { name: "Paycom", logo: "/images/partners/paycom.svg", tier: "gold" },
-      { name: "PwC", logo: "/images/partners/pwc.svg", tier: "gold" },
-      { name: "Dell", logo: "/images/partners/dell.svg", tier: "silver" },
+      { name: "Paycom", logo: "/images/partners/paycom.png", tier: "gold" },
+      { name: "PwC", logo: "/images/partners/pwc.png", tier: "gold" },
+      { name: "Dell", logo: "/images/partners/dell.png", tier: "silver" },
     ],
   },
 };

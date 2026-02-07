@@ -33,7 +33,7 @@ function buildWorkContent(item: WorkItem, acmSales?: Props["acmSales"]): string 
   let content = `${heading}\n\n**${item.role}**\n${item.url}\n\n${item.detail}`;
   if (item.company === "Texas ACM" && acmSales) {
     const logos = acmSales.partners.map((p) => p.logo).join(",");
-    content += `\n\n## Companies I've sold to\n\n${acmSales.detail}\n\n{{logos:${logos}}}`;
+    content += `\n\nCompanies I've sold to\n\n${acmSales.detail}\n\n{{logos:${logos}}}`;
   }
   return content;
 }
@@ -165,11 +165,12 @@ export function InteractiveLayout({
         .ghost-card:active { box-shadow: var(--active-shadow); }
       `}</style>
 
-      {/* Content column */}
+      {/* Content column — centered on small screens, left-aligned when terminal visible on lg */}
       <div
-        className="px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className={`px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          terminalOpen && !terminalFullscreen ? "lg:max-w-[50vw]" : ""
+        }`}
         style={{
-          maxWidth: terminalOpen && !terminalFullscreen ? "50vw" : "100vw",
           opacity: terminalFullscreen ? 0 : 1,
           pointerEvents: terminalFullscreen ? "none" : "auto",
         }}

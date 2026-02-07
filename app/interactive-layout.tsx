@@ -184,10 +184,15 @@ export function InteractiveLayout({
               </div>
               <div className="flex items-center gap-3 mt-1.5">
                 {socialLinks.filter((l) => socialIcons[l.label]).map((link) => (
-                  <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} aria-label={link.label}>
+                  <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} aria-label={link.label} title={link.label}>
                     {socialIcons[link.label]}
                   </a>
                 ))}
+                {!terminalOpen && (
+                  <button onClick={() => setTerminalOpen(true)} className="flex items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} title="Open terminal">
+                    <TerminalIcon />
+                  </button>
+                )}
               </div>
             </div>
             <p className="text-[15px] mt-6 leading-relaxed" style={{ color: theme.textDim }}>{bio}</p>
@@ -308,21 +313,6 @@ export function InteractiveLayout({
               </div>
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
           </section>
-
-          {/* Open terminal button — at bottom */}
-          {!terminalOpen && (
-            <>
-              <hr className="my-8" style={{ borderColor: theme.border }} />
-              <button
-                onClick={() => setTerminalOpen(true)}
-                className={`${cardClass} ghost-card inline-flex items-center gap-2 !w-auto`}
-                style={cardStyle}
-              >
-                <span style={{ color: theme.textMuted }}><TerminalIcon /></span>
-                <span className="text-sm font-medium" style={{ color: theme.text }}>Open terminal</span>
-              </button>
-            </>
-          )}
 
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
             <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>

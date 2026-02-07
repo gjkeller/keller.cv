@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import type { WorkItem, HackathonWin, Partner } from "@/lib/data";
+import type { WorkItem, HackathonWin, Partner, SiteData } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import { THEMES, THEME_NAMES, resolveAutoTheme } from "@/lib/themes";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
@@ -28,26 +28,40 @@ interface Props {
 }
 
 /* ── Build terminal file content from data ── */
+function buildWorkContent(item: WorkItem, acmSales?: Props["acmSales"]): string {
+  const heading = item.image ? `# ${item.company} ![${item.company}](${item.image})` : `# ${item.company}`;
+  let content = `${heading}\n\n**${item.role}**\n${item.url}\n\n${item.detail}`;
+  if (item.company === "Texas ACM" && acmSales) {
+    const logos = acmSales.partners.map((p) => p.logo).join(",");
+    content += `\n\n## Companies I've sold to\n\n${acmSales.detail}\n\n{{logos:${logos}}}`;
+  }
+  return content;
+}
+
+function buildHackathonContent(item: HackathonWin): string {
+  const heading = item.image ? `# ${item.project} ![${item.project}](${item.image})` : `# ${item.project}`;
+  return `${heading}\n\n**${item.name}** · ${item.prize}\n${item.url}\n\n${item.detail}`;
+}
+
 function getTerminalFile(
   type: string,
   id: string,
   currentWork: WorkItem[],
   hackathons: HackathonWin[],
   posts: Props["posts"],
+  acmSales?: Props["acmSales"],
 ): { command: string; content: string } | null {
   if (type === "work") {
     const item = currentWork.find((w) => w.company === id);
     if (!item) return null;
     const slug = item.company.toLowerCase().replace(/\s+/g, "-");
-    const img = item.image ? `\n![${item.company}](${item.image})\n` : "";
-    return { command: `cat ${slug}.md`, content: `# ${item.company}\n\n**${item.role}**\n${item.url}${img}\n${item.detail}` };
+    return { command: `cat ${slug}.md`, content: buildWorkContent(item, acmSales) };
   }
   if (type === "hackathon") {
     const item = hackathons.find((h) => h.name === id);
     if (!item) return null;
     const slug = item.project.toLowerCase().replace(/\s+/g, "-");
-    const img = item.image ? `\n![${item.project}](${item.image})\n` : "";
-    return { command: `cat projects/${slug}.md`, content: `# ${item.project}\n\n**${item.name}** · ${item.prize}\n${item.url}${img}\n${item.detail}` };
+    return { command: `cat projects/${slug}.md`, content: buildHackathonContent(item) };
   }
   if (type === "post") {
     const post = posts.find((p) => p.slug === id);
@@ -57,19 +71,17 @@ function getTerminalFile(
   return null;
 }
 
-function buildInitialFiles(currentWork: WorkItem[], hackathons: HackathonWin[], posts: Props["posts"]) {
+function buildInitialFiles(currentWork: WorkItem[], hackathons: HackathonWin[], posts: Props["posts"], acmSales?: Props["acmSales"]) {
   const files: Record<string, string> = {};
   const urls: Record<string, string> = {};
   for (const item of currentWork) {
     const slug = item.company.toLowerCase().replace(/\s+/g, "-");
-    const img = item.image ? `\n![${item.company}](${item.image})\n` : "";
-    files[`${slug}.md`] = `# ${item.company}\n\n**${item.role}**\n${item.url}${img}\n${item.detail}`;
+    files[`${slug}.md`] = buildWorkContent(item, acmSales);
     if (item.url) urls[`${slug}.md`] = item.url;
   }
   for (const win of hackathons) {
     const slug = win.project.toLowerCase().replace(/\s+/g, "-");
-    const img = win.image ? `\n![${win.project}](${win.image})\n` : "";
-    files[`projects/${slug}.md`] = `# ${win.project}\n\n**${win.name}** · ${win.prize}\n${win.url}${img}\n${win.detail}`;
+    files[`projects/${slug}.md`] = buildHackathonContent(win);
     if (win.url) urls[`projects/${slug}.md`] = win.url;
   }
   for (const post of posts) {
@@ -93,7 +105,7 @@ function ghostCardStyle(theme: Theme) {
     ["--active-shadow" as string]: theme.cardActiveShadow,
   };
 }
-const cardClass = "w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
+const cardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 
 /* ── Main layout ── */
 export function InteractiveLayout({
@@ -124,7 +136,7 @@ export function InteractiveLayout({
     return THEMES.find((t) => t.name === themeMode) || THEMES[0];
   }, [themeMode, systemDark]);
 
-  const initialFiles = useMemo(() => buildInitialFiles(currentWork, hackathons, posts), [currentWork, hackathons, posts]);
+  const initialFiles = useMemo(() => buildInitialFiles(currentWork, hackathons, posts, acmSales), [currentWork, hackathons, posts, acmSales]);
 
   const handleThemeChange = useCallback((themeName: string) => {
     if (themeName === "auto" || THEME_NAMES.includes(themeName)) {
@@ -136,7 +148,7 @@ export function InteractiveLayout({
     const key = `${type}-${id}`;
     if (activeId === key) { setActiveId(null); return; }
     setActiveId(key);
-    const file = getTerminalFile(type, id, currentWork, hackathons, posts);
+    const file = getTerminalFile(type, id, currentWork, hackathons, posts, acmSales);
     if (file) { setActiveFile(file); if (!terminalOpen) setTerminalOpen(true); }
   }, [activeId, currentWork, hackathons, posts, terminalOpen]);
 
@@ -289,26 +301,6 @@ export function InteractiveLayout({
                 })}
               </div>
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
-          </section>
-
-          <hr className="my-8" style={{ borderColor: theme.border }} />
-
-          {/* ACM Sales */}
-          <section>
-            <h2 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: theme.textMuted }}>Companies I&apos;ve sold to</h2>
-            <p className="text-sm leading-relaxed mb-4" style={{ color: theme.textDim }}>{acmSales.detail}</p>
-            <div className="flex flex-wrap items-center gap-4">
-              {acmSales.partners.map((p) => (
-                <img
-                  key={p.name}
-                  src={p.logo}
-                  alt={p.name}
-                  title={p.name}
-                  className="h-5 w-auto object-contain opacity-60 hover:opacity-100 transition-opacity"
-                  style={{ filter: theme.isDark ? "brightness(0) invert(0.7)" : undefined }}
-                />
-              ))}
-            </div>
           </section>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />

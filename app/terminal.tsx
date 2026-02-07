@@ -409,12 +409,34 @@ export function Terminal({
 
   const renderLine = useCallback((text: string) => {
     return text.split("\n").map((line, i) => {
-      // Image syntax: ![alt](src)
+      // Inline image glyph: ![alt](src) — render as tiny icon next to text
       const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
       if (imgMatch) {
         return (
-          <div key={i} className="my-2">
-            <img src={imgMatch[2]} alt={imgMatch[1]} className="max-w-[280px] max-h-[180px] rounded-md object-contain" />
+          <span key={i} className="inline-flex items-center">
+            <img src={imgMatch[2]} alt={imgMatch[1]} className="w-[14px] h-[14px] rounded-sm object-contain inline-block" />
+          </span>
+        );
+      }
+      // Heading with inline image: # Text ![alt](src)
+      const h1Img = line.match(/^# (.+?) !\[([^\]]*)\]\(([^)]+)\)$/);
+      if (h1Img) {
+        return (
+          <div key={i} className="font-semibold text-sm flex items-center gap-1.5" style={{ color: theme.termText }}>
+            <img src={h1Img[3]} alt={h1Img[2]} className="w-[14px] h-[14px] rounded-sm object-contain" />
+            {linkify(h1Img[1])}
+          </div>
+        );
+      }
+      // Partner logos line: {{logos:/path1.svg,/path2.svg,...}}
+      const logosMatch = line.match(/^\{\{logos:(.+)\}\}$/);
+      if (logosMatch) {
+        const paths = logosMatch[1].split(",");
+        return (
+          <div key={i} className="flex flex-wrap items-center gap-3 my-1">
+            {paths.map((p, j) => (
+              <img key={j} src={p.trim()} alt="" className="h-3.5 w-auto object-contain opacity-60" style={{ filter: theme.isDark ? "brightness(0) invert(0.7)" : undefined }} />
+            ))}
           </div>
         );
       }

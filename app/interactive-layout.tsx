@@ -337,7 +337,7 @@ export function InteractiveLayout({
         !terminalOpen
           ? "opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
           : terminalFullscreen
-            ? "opacity-100 scale-100 inset-6 w-auto h-auto ml-0 translate-y-0 top-0 left-0 z-50"
+            ? "opacity-100 scale-100 z-50 top-10 left-10 right-10 bottom-10 w-auto h-auto ml-0 translate-y-0"
             : "opacity-100 scale-100 left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
       }`}>
         <Terminal

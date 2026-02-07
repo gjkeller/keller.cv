@@ -16,6 +16,7 @@ interface TerminalProps {
   onMinimize?: () => void;
   onExpand?: () => void;
   onThemeChange?: (name: string) => void;
+  borderless?: boolean;
 }
 
 export { THEME_NAMES };
@@ -124,6 +125,7 @@ export function Terminal({
   onMinimize,
   onExpand,
   onThemeChange,
+  borderless = false,
 }: TerminalProps) {
   const dark = theme.isDark;
   const [history, setHistory] = useState<{ prompt: string; command: string; output: string }[]>([]);
@@ -586,7 +588,7 @@ export function Terminal({
 
   return (
     <div
-      className="w-full h-full flex flex-col rounded-xl border overflow-hidden transition-colors duration-300"
+      className={`w-full h-full flex flex-col overflow-hidden transition-colors duration-300 ${borderless ? "" : "rounded-xl border"}`}
       style={{
         backgroundColor: theme.termBg,
         borderColor: theme.termBarBorder,

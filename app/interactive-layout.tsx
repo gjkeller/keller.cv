@@ -58,6 +58,7 @@ export function InteractiveLayout({
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
+  const [mobileTerminalOpen, setMobileTerminalOpen] = useState(false);
 
   // Shared theme from context (persisted + system-aware)
   const { theme, setThemeMode } = useTheme();
@@ -203,11 +204,16 @@ export function InteractiveLayout({
                     {socialIcons[link.label]}
                   </a>
                 ))}
+                {/* Desktop: show when terminal closed */}
                 {!terminalOpen && (
-                  <button onClick={() => setTerminalOpen(true)} className="flex items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} title="Open terminal">
+                  <button onClick={() => setTerminalOpen(true)} className="hidden lg:flex items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} title="Open terminal">
                     <TerminalIcon />
                   </button>
                 )}
+                {/* Mobile: always show */}
+                <button onClick={() => setMobileTerminalOpen(true)} className="flex lg:hidden items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} title="Open terminal">
+                  <TerminalIcon />
+                </button>
               </div>
             </div>
             <p className="text-[15px] mt-6 leading-relaxed" style={{ color: theme.textDim }}>{bio}</p>
@@ -355,6 +361,24 @@ export function InteractiveLayout({
           onThemeChange={handleThemeChange}
         />
       </div>
+
+      {/* Mobile fullscreen terminal */}
+      {mobileTerminalOpen && (
+        <div className="lg:hidden fixed inset-0 z-50" style={{ backgroundColor: theme.termBg }}>
+          <Terminal
+            activeFile={activeFile}
+            staticFiles={allFiles}
+            initialFiles={{}}
+            initialUrls={allUrls}
+            theme={theme}
+            onClose={() => setMobileTerminalOpen(false)}
+            onMinimize={() => setMobileTerminalOpen(false)}
+            onExpand={() => {}}
+            onThemeChange={handleThemeChange}
+            borderless
+          />
+        </div>
+      )}
     </main>
   );
 }

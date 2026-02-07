@@ -54,7 +54,7 @@ export const siteData: SiteData = {
       role: "Cofounder",
       description: "Reinventing agent infrastructure",
       detail: "Building the observability and developer tools layer for AI agents. AgentOps provides session replays, cost tracking, and failure detection so teams can actually understand what their agents are doing in production. We're rethinking how developers build, test, and monitor agentic systems from the ground up.",
-      image: "/images/agentops.png",
+      image: "/images/agentops.svg",
       current: true,
     },
     {

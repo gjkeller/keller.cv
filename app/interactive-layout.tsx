@@ -105,7 +105,7 @@ function ghostCardStyle(theme: Theme) {
     ["--active-shadow" as string]: theme.cardActiveShadow,
   };
 }
-const cardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
+const cardClass = "w-full text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 
 /* ── Main layout ── */
 export function InteractiveLayout({

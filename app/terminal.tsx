@@ -2,11 +2,21 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
+interface Theme {
+  termBg: string;
+  termBarBg: string;
+  termBarBorder: string;
+  termText: string;
+  termDim: string;
+  isDark: boolean;
+  [key: string]: unknown;
+}
+
 interface TerminalProps {
   activeFile: { command: string; content: string } | null;
   initialFiles?: Record<string, string>;
   initialUrls?: Record<string, string>;
-  dark?: boolean;
+  theme: Theme;
   onClose?: () => void;
   onMinimize?: () => void;
 }
@@ -141,7 +151,8 @@ function useTypewriter(text: string, speed: number = 8) {
 }
 
 /* ── Terminal component ── */
-export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, dark = false, onClose, onMinimize }: TerminalProps) {
+export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, theme, onClose, onMinimize }: TerminalProps) {
+  const dark = theme.isDark;
   const [history, setHistory] = useState<{ command: string; output: string }[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [dynamicFiles, setDynamicFiles] = useState<Record<string, string>>(initialFiles);
@@ -451,42 +462,54 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, dark
   }, []);
 
   const renderLine = useCallback((text: string) => {
-    const h1 = dark ? "text-gray-100" : "text-gray-900";
-    const h2 = dark ? "text-gray-200" : "text-gray-800";
-    const body = dark ? "text-gray-400" : "text-gray-600";
     return text.split("\n").map((line, i) => {
-      if (line.startsWith("# ")) return <div key={i} className={`${h1} font-semibold text-sm`}>{linkify(line.slice(2))}</div>;
-      if (line.startsWith("## ")) return <div key={i} className={`${h2} font-medium text-sm mt-3`}>{linkify(line.slice(3))}</div>;
-      if (line.startsWith("**") && line.endsWith("**")) return <div key={i} className={`${h2} font-medium text-[13px]`}>{linkify(line.slice(2, -2))}</div>;
-      if (line.trimStart().startsWith("→")) return <div key={i} className={`${body} text-[13px]`}>{linkify(line)}</div>;
-      if (line.trimStart().startsWith("-") || line.trimStart().startsWith("•")) return <div key={i} className={`${body} text-[13px]`}>{linkify(line)}</div>;
+      if (line.startsWith("# ")) return <div key={i} className="font-semibold text-sm" style={{ color: theme.termText }}>{linkify(line.slice(2))}</div>;
+      if (line.startsWith("## ")) return <div key={i} className="font-medium text-sm mt-3" style={{ color: theme.termText }}>{linkify(line.slice(3))}</div>;
+      if (line.startsWith("**") && line.endsWith("**")) return <div key={i} className="font-medium text-[13px]" style={{ color: theme.termText }}>{linkify(line.slice(2, -2))}</div>;
+      if (line.trimStart().startsWith("→")) return <div key={i} className="text-[13px]" style={{ color: theme.termDim }}>{linkify(line)}</div>;
+      if (line.trimStart().startsWith("-") || line.trimStart().startsWith("•")) return <div key={i} className="text-[13px]" style={{ color: theme.termDim }}>{linkify(line)}</div>;
       if (line.trim() === "") return <div key={i} className="h-2" />;
-      return <div key={i} className={`${body} text-[13px] leading-relaxed`}>{linkify(line)}</div>;
+      return <div key={i} className="text-[13px] leading-relaxed" style={{ color: theme.termDim }}>{linkify(line)}</div>;
     });
-  }, [linkify, dark]);
+  }, [linkify, theme]);
 
   const isAutoTyping = autoPhase !== "idle";
 
-  const textColor = dark ? "text-gray-200" : "text-gray-800";
-  const dimColor = dark ? "text-gray-500" : "text-gray-600";
-  const cursorBg = dark ? "bg-gray-200" : "bg-gray-800";
-
   return (
-    <div className={`w-full h-full flex flex-col rounded-xl border overflow-hidden transition-colors duration-300 ${
-      dark
-        ? "bg-gray-950 border-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.03)]"
-        : "bg-[#FAFAFA] border-gray-200 shadow-[0_1px_3px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.8)]"
-    }`} onClick={focusInput}>
+    <div
+      className="w-full h-full flex flex-col rounded-xl border overflow-hidden transition-colors duration-300"
+      style={{
+        backgroundColor: theme.termBg,
+        borderColor: theme.termBarBorder,
+        boxShadow: dark
+          ? "0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)"
+          : "0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8)",
+      }}
+      onClick={focusInput}
+    >
       {/* Title bar */}
-      <div className={`flex items-center gap-2 px-4 py-2.5 border-b select-none ${
-        dark ? "bg-gray-900 border-gray-800" : "bg-[#F0F0F0] border-gray-200"
-      }`}>
-        <div className="flex gap-1.5">
-          <button onClick={(e) => { e.stopPropagation(); onClose?.(); }} className="w-3 h-3 rounded-full bg-[#FF5F57] border border-[#E0443E] hover:brightness-110 transition" aria-label="Close" />
-          <button onClick={(e) => { e.stopPropagation(); onMinimize?.(); }} className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-[#DEA123] hover:brightness-110 transition" aria-label="Minimize" />
-          <button onClick={(e) => { e.stopPropagation(); setIsFullscreen(!isFullscreen); }} className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29] hover:brightness-110 transition" aria-label="Fullscreen" />
+      <div
+        className="flex items-center gap-2 px-4 py-2.5 border-b select-none"
+        style={{ backgroundColor: theme.termBarBg, borderColor: theme.termBarBorder }}
+      >
+        <div className="group flex gap-1.5">
+          {/* Close */}
+          <button onClick={(e) => { e.stopPropagation(); onClose?.(); }} className="w-3 h-3 rounded-full bg-[#FF5F57] border border-[#E0443E] flex items-center justify-center hover:brightness-110 transition" aria-label="Close">
+            <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#4D0000" strokeWidth="2" strokeLinecap="round"><line x1="2" y1="2" x2="10" y2="10" /><line x1="10" y1="2" x2="2" y2="10" /></svg>
+          </button>
+          {/* Minimize */}
+          <button onClick={(e) => { e.stopPropagation(); onMinimize?.(); }} className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-[#DEA123] flex items-center justify-center hover:brightness-110 transition" aria-label="Minimize">
+            <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#995700" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="6" x2="11" y2="6" /></svg>
+          </button>
+          {/* Expand */}
+          <button onClick={(e) => { e.stopPropagation(); setIsFullscreen(!isFullscreen); }} className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29] flex items-center justify-center hover:brightness-110 transition" aria-label="Fullscreen">
+            <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#006500" strokeWidth="1.5">
+              {/* Diagonal expand arrows */}
+              <polyline points="8,1 11,1 11,4" /><polyline points="4,11 1,11 1,8" />
+            </svg>
+          </button>
         </div>
-        <span className={`text-[11px] ml-2 font-mono ${dark ? "text-gray-600" : "text-gray-500"}`}>gabe@keller.cv {cwd === "~" ? "~" : `~/${cwd}`}</span>
+        <span className="text-[11px] ml-2 font-mono" style={{ color: theme.termDim }}>gabe@keller.cv {cwd === "~" ? "~" : `~/${cwd}`}</span>
       </div>
 
       {/* Terminal body */}
@@ -495,7 +518,7 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, dark
           <div key={i} className="mb-4">
             <div>
               <span className="text-green-500 font-medium">{prompt}</span>
-              <span className={textColor}>{entry.command}</span>
+              <span style={{ color: theme.termText }}>{entry.command}</span>
             </div>
             {entry.output && <div className="mt-1">{renderLine(entry.output)}</div>}
           </div>
@@ -505,10 +528,10 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, dark
           <div className="mb-4">
             <div>
               <span className="text-green-500 font-medium">{prompt}</span>
-              <span className={textColor}>
+              <span style={{ color: theme.termText }}>
                 {autoPhase === "typing-cmd" ? cmdTyper.displayed : autoCommand}
               </span>
-              {autoPhase === "typing-cmd" && <span className={`inline-block w-[7px] h-[14px] ${cursorBg} align-middle animate-pulse`} />}
+              {autoPhase === "typing-cmd" && <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse" style={{ backgroundColor: theme.termText }} />}
             </div>
             {autoPhase === "typing-output" && (
               <div className="mt-1">{renderLine(outputTyper.displayed)}</div>
@@ -519,8 +542,8 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, dark
         {!isAutoTyping && (
           <div>
             <span className="text-green-500 font-medium">{prompt}</span>
-            <span className={textColor}>{inputValue}</span>
-            <span className={`inline-block w-[7px] h-[14px] ${cursorBg} align-middle animate-pulse`} />
+            <span style={{ color: theme.termText }}>{inputValue}</span>
+            <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse" style={{ backgroundColor: theme.termText }} />
           </div>
         )}
       </div>

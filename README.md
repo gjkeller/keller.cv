@@ -2,7 +2,7 @@
 
 Personal website for [Gabriel Keller](https://keller.cv). Split-panel layout with a bio/portfolio on the left and an interactive terminal on the right. The terminal has a virtual filesystem, multiple color themes, and a conversational AI agent that knows everything about Gabe and will roast you if you ask a lazy question.
 
-![keller.cv in dark mode](./public/images/blog/building-keller-cv/final-desktop-dark-top.png)
+![keller.cv in dark mode](./public/images/blog/building-keller-cv/final-agent-chat.png)
 
 ## How it works
 
@@ -24,8 +24,6 @@ There's also a hidden `.secret` file. Good luck finding it.
 ### AI Agent
 
 The terminal's standout feature. Type `agent` (or `claude` or `codex`) to start chatting with an AI that acts as Gabe's digital representative. It's not a generic chatbot -- it has a hand-written personality and knows Gabe's full context.
-
-![Chatting with the agent](./public/images/blog/building-keller-cv/final-agent-chat.png)
 
 **How it's built:**
 

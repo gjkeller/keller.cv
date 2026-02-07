@@ -57,19 +57,28 @@ export function InteractiveLayout({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   // Viewport detection — single terminal instance adapts to desktop/mobile
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
-  );
-
-  const [terminalOpen, setTerminalOpen] = useState(isDesktop);
+  // Always init as true to match SSR; useEffect corrects after hydration
+  const [isDesktop, setIsDesktop] = useState(true);
+  const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
-    setIsDesktop(mql.matches);
+    const desktop = mql.matches;
+    setIsDesktop(desktop);
+    // On mobile, close the terminal so users land on main content
+    if (!desktop) setTerminalOpen(false);
     const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
   }, []);
+
+  // Lock body scroll when mobile terminal is open
+  useEffect(() => {
+    if (!isDesktop && terminalOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [isDesktop, terminalOpen]);
 
   // Shared theme from context (persisted + system-aware)
   const { theme, setThemeMode } = useTheme();
@@ -392,7 +401,7 @@ export function InteractiveLayout({
           />
         </div>
       ) : terminalOpen ? (
-        <div className="fixed inset-0 z-50" style={{ backgroundColor: theme.termBg }}>
+        <div className="fixed top-0 left-0 right-0 h-[100dvh] z-50 overflow-hidden" style={{ backgroundColor: theme.termBg }}>
           <Terminal
             activeFile={activeFile}
             staticFiles={allFiles}

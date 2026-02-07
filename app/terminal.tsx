@@ -690,7 +690,7 @@ export function Terminal({
       {borderless ? (
         /* Mobile: visible sticky input bar */
         <div
-          className="flex items-center gap-2 px-3 py-2 border-t font-mono text-[13px]"
+          className="flex items-center gap-2 px-3 py-2 border-t font-mono text-[16px]"
           style={{ backgroundColor: theme.termBarBg, borderColor: theme.termBarBorder }}
         >
           <span className={`shrink-0 ${chatMode ? "text-blue-400" : "text-green-500"} font-medium`}>{currentPrompt}</span>
@@ -705,7 +705,7 @@ export function Terminal({
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            className="flex-1 min-w-0 bg-transparent outline-none font-mono text-[13px]"
+            className="flex-1 min-w-0 bg-transparent outline-none font-mono text-[16px]"
             style={{ color: theme.termText, caretColor: theme.termText }}
             aria-label="Terminal input"
           />

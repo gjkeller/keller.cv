@@ -600,23 +600,36 @@ export function Terminal({
     >
       {/* Title bar */}
       <div
-        className="flex items-center gap-2 px-4 py-2.5 border-b select-none"
+        className={`flex items-center gap-2 px-4 ${borderless ? "py-3.5" : "py-2.5"} border-b select-none`}
         style={{ backgroundColor: theme.termBarBg, borderColor: theme.termBarBorder }}
       >
-        <div className="group flex gap-1.5">
-          <button onClick={(e) => { e.stopPropagation(); onClose?.(); }} className="w-3 h-3 rounded-full bg-[#FF5F57] border border-[#E0443E] flex items-center justify-center hover:brightness-110 transition" aria-label="Close">
-            <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#4D0000" strokeWidth="2" strokeLinecap="round"><line x1="2" y1="2" x2="10" y2="10" /><line x1="10" y1="2" x2="2" y2="10" /></svg>
+        {borderless ? (
+          /* Mobile: labeled "Done" pill button */
+          <button
+            onClick={(e) => { e.stopPropagation(); onClose?.(); }}
+            className="px-3 py-1 rounded-full text-xs font-semibold active:scale-95 transition-transform"
+            style={{ backgroundColor: theme.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)", color: theme.termText }}
+            aria-label="Close terminal"
+          >
+            Done
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onMinimize?.(); }} className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-[#DEA123] flex items-center justify-center hover:brightness-110 transition" aria-label="Minimize">
-            <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#995700" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="6" x2="11" y2="6" /></svg>
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onExpand?.(); }} className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29] flex items-center justify-center hover:brightness-110 transition" aria-label="Fullscreen">
-            <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#006500" strokeWidth="1.5">
-              <polyline points="8,1 11,1 11,4" /><polyline points="4,11 1,11 1,8" />
-            </svg>
-          </button>
-        </div>
-        <span className="text-[11px] ml-2 font-mono" style={{ color: theme.termDim }}>
+        ) : (
+          /* Desktop: standard traffic lights */
+          <div className="group flex gap-1.5">
+            <button onClick={(e) => { e.stopPropagation(); onClose?.(); }} className="w-3 h-3 rounded-full bg-[#FF5F57] border border-[#E0443E] flex items-center justify-center hover:brightness-110 transition" aria-label="Close">
+              <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#4D0000" strokeWidth="2" strokeLinecap="round"><line x1="2" y1="2" x2="10" y2="10" /><line x1="10" y1="2" x2="2" y2="10" /></svg>
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onMinimize?.(); }} className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-[#DEA123] flex items-center justify-center hover:brightness-110 transition" aria-label="Minimize">
+              <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#995700" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="6" x2="11" y2="6" /></svg>
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onExpand?.(); }} className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29] flex items-center justify-center hover:brightness-110 transition" aria-label="Fullscreen">
+              <svg className="w-[6px] h-[6px] opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none" stroke="#006500" strokeWidth="1.5">
+                <polyline points="8,1 11,1 11,4" /><polyline points="4,11 1,11 1,8" />
+              </svg>
+            </button>
+          </div>
+        )}
+        <span className={`${borderless ? "text-[13px]" : "text-[11px]"} ml-2 font-mono`} style={{ color: theme.termDim }}>
           {chatMode ? "gabe@keller.cv — agent" : `gabe@keller.cv ${cwd === "~" ? "~" : `~/${cwd}`}`}
         </span>
       </div>
@@ -660,7 +673,8 @@ export function Terminal({
           </div>
         )}
 
-        {!isAutoTyping && (
+        {/* Inline prompt + cursor (desktop only when borderless) */}
+        {!isAutoTyping && !borderless && (
           <div>
             <span className={chatMode ? "text-blue-400 font-medium" : "text-green-500 font-medium"}>{currentPrompt}</span>
             <span style={{ color: theme.termText }}>{inputValue}</span>
@@ -673,17 +687,53 @@ export function Terminal({
         )}
       </div>
 
-      {/* Hidden input */}
-      <input
-        ref={inputRef}
-        type="text"
-        value={inputValue}
-        onChange={(e) => { if (!isAutoTyping && !isStreaming) setInputValue(e.target.value); }}
-        onKeyDown={handleKeyDown}
-        className="sr-only"
-        autoFocus
-        aria-label="Terminal input"
-      />
+      {borderless ? (
+        /* Mobile: visible sticky input bar */
+        <div
+          className="flex items-center gap-2 px-3 py-2 border-t font-mono text-[13px]"
+          style={{ backgroundColor: theme.termBarBg, borderColor: theme.termBarBorder }}
+        >
+          <span className={`shrink-0 ${chatMode ? "text-blue-400" : "text-green-500"} font-medium`}>{currentPrompt}</span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => { if (!isAutoTyping && !isStreaming) setInputValue(e.target.value); }}
+            onKeyDown={handleKeyDown}
+            enterKeyHint="go"
+            autoFocus
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="flex-1 min-w-0 bg-transparent outline-none font-mono text-[13px]"
+            style={{ color: theme.termText, caretColor: theme.termText }}
+            aria-label="Terminal input"
+          />
+          <button
+            onClick={(e) => { e.stopPropagation(); handleSubmit(); }}
+            disabled={isStreaming}
+            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-all disabled:opacity-30"
+            style={{ backgroundColor: theme.termText }}
+            aria-label="Run command"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: theme.termBg }}>
+              <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        /* Desktop: hidden input */
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => { if (!isAutoTyping && !isStreaming) setInputValue(e.target.value); }}
+          onKeyDown={handleKeyDown}
+          className="sr-only"
+          autoFocus
+          aria-label="Terminal input"
+        />
+      )}
     </div>
   );
 }

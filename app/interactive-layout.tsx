@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import type { Theme } from "@/lib/themes";
 import { useTheme } from "@/lib/theme-context";
@@ -58,7 +58,18 @@ export function InteractiveLayout({
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
-  const [mobileTerminalOpen, setMobileTerminalOpen] = useState(false);
+
+  // Viewport detection — single terminal instance adapts to desktop/mobile
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+  );
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    setIsDesktop(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   // Shared theme from context (persisted + system-aware)
   const { theme, setThemeMode } = useTheme();
@@ -204,16 +215,6 @@ export function InteractiveLayout({
                     {socialIcons[link.label]}
                   </a>
                 ))}
-                {/* Desktop: show when terminal closed */}
-                {!terminalOpen && (
-                  <button onClick={() => setTerminalOpen(true)} className="hidden lg:flex items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} title="Open terminal">
-                    <TerminalIcon />
-                  </button>
-                )}
-                {/* Mobile: always show */}
-                <button onClick={() => setMobileTerminalOpen(true)} className="flex lg:hidden items-center justify-center w-5 h-5 transition-colors hover:opacity-80" style={{ color: theme.textMuted }} title="Open terminal">
-                  <TerminalIcon />
-                </button>
               </div>
             </div>
             <p className="text-[15px] mt-6 leading-relaxed" style={{ color: theme.textDim }}>{bio}</p>
@@ -234,6 +235,34 @@ export function InteractiveLayout({
                   <span className="text-xs block" style={{ color: theme.textMuted }}>30 min</span>
                 </div>
               </a>
+            </div>
+
+            {/* Terminal link — desktop: collapses when terminal open */}
+            <div className={`hidden lg:grid transition-all duration-300 ${terminalOpen ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
+              <div className="overflow-hidden">
+                <button
+                  onClick={() => setTerminalOpen(true)}
+                  className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-300 border border-transparent ghost-card"
+                  style={{ ...cardStyle, color: theme.text }}
+                >
+                  <TerminalIcon />
+                  Access bash terminal
+                </button>
+              </div>
+            </div>
+
+            {/* Terminal link — mobile: collapses when terminal open */}
+            <div className={`grid lg:hidden transition-all duration-300 ${terminalOpen ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
+              <div className="overflow-hidden">
+                <button
+                  onClick={() => setTerminalOpen(true)}
+                  className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-300 border border-transparent ghost-card"
+                  style={{ ...cardStyle, color: theme.text }}
+                >
+                  <TerminalIcon />
+                  Access bash terminal
+                </button>
+              </div>
             </div>
           </header>
 
@@ -341,44 +370,43 @@ export function InteractiveLayout({
         </div>
       </div>
 
-      {/* Terminal */}
-      <div className={`hidden lg:block fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        !terminalOpen
-          ? "transition-all duration-150 opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
-          : terminalFullscreen
-            ? "transition-all duration-500 opacity-100 scale-100 z-50 top-10 left-10 right-10 bottom-10 w-auto h-auto ml-0 translate-y-0"
-            : "transition-all duration-500 opacity-100 scale-100 left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
-      }`}>
-        <Terminal
-          activeFile={activeFile}
-          staticFiles={allFiles}
-          initialFiles={{}}
-          initialUrls={allUrls}
-          theme={theme}
-          onClose={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
-          onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
-          onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
-          onThemeChange={handleThemeChange}
-        />
-      </div>
-
-      {/* Mobile fullscreen terminal */}
-      {mobileTerminalOpen && (
-        <div className="lg:hidden fixed inset-0 z-50" style={{ backgroundColor: theme.termBg }}>
+      {/* Single terminal instance — wrapper switches between desktop/mobile layout */}
+      {isDesktop ? (
+        <div className={`fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          !terminalOpen
+            ? "transition-all duration-150 opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
+            : terminalFullscreen
+              ? "transition-all duration-500 opacity-100 scale-100 z-50 top-10 left-10 right-10 bottom-10 w-auto h-auto ml-0 translate-y-0"
+              : "transition-all duration-500 opacity-100 scale-100 left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
+        }`}>
           <Terminal
             activeFile={activeFile}
             staticFiles={allFiles}
             initialFiles={{}}
             initialUrls={allUrls}
             theme={theme}
-            onClose={() => setMobileTerminalOpen(false)}
-            onMinimize={() => setMobileTerminalOpen(false)}
+            onClose={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
+            onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
+            onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
+            onThemeChange={handleThemeChange}
+          />
+        </div>
+      ) : terminalOpen ? (
+        <div className="fixed inset-0 z-50" style={{ backgroundColor: theme.termBg }}>
+          <Terminal
+            activeFile={activeFile}
+            staticFiles={allFiles}
+            initialFiles={{}}
+            initialUrls={allUrls}
+            theme={theme}
+            onClose={() => setTerminalOpen(false)}
+            onMinimize={() => setTerminalOpen(false)}
             onExpand={() => {}}
             onThemeChange={handleThemeChange}
             borderless
           />
         </div>
-      )}
+      ) : null}
     </main>
   );
 }

@@ -13,26 +13,48 @@ export interface MdStyles {
   isDark: boolean;
 }
 
-/* ── Linkify ── */
+/* ── Inline formatting: links, bold, italic ── */
 
 export function linkify(text: string): React.ReactNode[] {
-  const urlRegex = /(https?:\/\/[^\s)]+|\/[a-zA-Z][^\s)*]*)/g;
-  const parts = text.split(urlRegex);
-  return parts.map((part, j) => {
-    if (!urlRegex.test(part)) return <span key={j}>{part}</span>;
-    urlRegex.lastIndex = 0;
-    const isExternal = part.startsWith("http");
-    return (
-      <a
-        key={j}
-        href={part}
-        target={isExternal ? "_blank" : undefined}
-        rel={isExternal ? "noopener noreferrer" : undefined}
-        onClick={(e) => e.stopPropagation()}
-        className="text-blue-500 hover:text-blue-400 hover:underline transition-colors"
-      >{part}</a>
-    );
-  });
+  // Match bold (**…**), italic (*…*), or URLs — bold checked before italic
+  const inlinePattern = /\*\*([^*]+)\*\*|\*([^*]+)\*|(https?:\/\/[^\s)]+|\/[a-zA-Z][^\s)*]*)/g;
+
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
+
+  for (const m of text.matchAll(inlinePattern)) {
+    const idx = m.index!;
+    if (idx > lastIndex) nodes.push(<span key={key++}>{text.slice(lastIndex, idx)}</span>);
+
+    if (m[1] !== undefined) {
+      // Bold
+      nodes.push(<span key={key++} className="font-semibold">{m[1]}</span>);
+    } else if (m[2] !== undefined) {
+      // Italic
+      nodes.push(<span key={key++} className="italic">{m[2]}</span>);
+    } else if (m[3] !== undefined) {
+      // URL
+      const url = m[3];
+      const isExternal = url.startsWith("http");
+      nodes.push(
+        <a
+          key={key++}
+          href={url}
+          target={isExternal ? "_blank" : undefined}
+          rel={isExternal ? "noopener noreferrer" : undefined}
+          onClick={(e) => e.stopPropagation()}
+          className="text-blue-500 hover:text-blue-400 hover:underline transition-colors"
+        >{url}</a>
+      );
+    }
+
+    lastIndex = idx + m[0].length;
+  }
+
+  if (lastIndex < text.length) nodes.push(<span key={key++}>{text.slice(lastIndex)}</span>);
+
+  return nodes.length ? nodes : [<span key={0}>{text}</span>];
 }
 
 /* ── Parse image attributes: {width=80} or {size=md} ── */

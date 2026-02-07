@@ -191,19 +191,25 @@ export function InteractiveLayout({
               </div>
             </div>
             <p className="text-[15px] mt-6 leading-relaxed" style={{ color: theme.textDim }}>{bio}</p>
-          </header>
 
-          {/* Open terminal button — styled as ghost card */}
-          {!terminalOpen && (
-            <button
-              onClick={() => setTerminalOpen(true)}
-              className={`${cardClass} ghost-card inline-flex items-center gap-2 mt-6 !w-auto`}
-              style={cardStyle}
-            >
-              <span style={{ color: theme.textMuted }}><TerminalIcon /></span>
-              <span className="text-sm font-medium" style={{ color: theme.text }}>Open terminal</span>
-            </button>
-          )}
+            {/* Call buttons */}
+            <div className="grid grid-cols-2 gap-3 mt-6">
+              <a href={calLink15} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
+                <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
+                <div>
+                  <span className="font-medium text-[14px]" style={{ color: theme.text }}>Quick call</span>
+                  <span className="text-xs block" style={{ color: theme.textMuted }}>15 min</span>
+                </div>
+              </a>
+              <a href={calLink30} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
+                <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                <div>
+                  <span className="font-medium text-[14px]" style={{ color: theme.text }}>Deep dive</span>
+                  <span className="text-xs block" style={{ color: theme.textMuted }}>30 min</span>
+                </div>
+              </a>
+            </div>
+          </header>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
@@ -303,28 +309,20 @@ export function InteractiveLayout({
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
           </section>
 
-          <hr className="my-8" style={{ borderColor: theme.border }} />
-
-          {/* Connect */}
-          <section>
-            <p className="text-[15px] mb-4" style={{ color: theme.textDim }}>Always happy to chat. Book some time and let&apos;s connect.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <a href={calLink15} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
-                <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
-                <div>
-                  <span className="font-medium text-[14px]" style={{ color: theme.text }}>Quick call</span>
-                  <span className="text-xs block" style={{ color: theme.textMuted }}>15 min</span>
-                </div>
-              </a>
-              <a href={calLink30} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
-                <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                <div>
-                  <span className="font-medium text-[14px]" style={{ color: theme.text }}>Deep dive</span>
-                  <span className="text-xs block" style={{ color: theme.textMuted }}>30 min</span>
-                </div>
-              </a>
-            </div>
-          </section>
+          {/* Open terminal button — at bottom */}
+          {!terminalOpen && (
+            <>
+              <hr className="my-8" style={{ borderColor: theme.border }} />
+              <button
+                onClick={() => setTerminalOpen(true)}
+                className={`${cardClass} ghost-card inline-flex items-center gap-2 !w-auto`}
+                style={cardStyle}
+              >
+                <span style={{ color: theme.textMuted }}><TerminalIcon /></span>
+                <span className="text-sm font-medium" style={{ color: theme.text }}>Open terminal</span>
+              </button>
+            </>
+          )}
 
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
             <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>

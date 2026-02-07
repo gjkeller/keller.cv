@@ -11,7 +11,8 @@ const socialIcons: Record<string, React.ReactNode> = {
 
 interface Props {
   socialLinks: { label: string; url: string }[];
-  calLink: string;
+  calLink15: string;
+  calLink30: string;
   name: string;
   tagline: string;
   bio: string;
@@ -134,7 +135,7 @@ function TerminalIcon() {
 }
 
 export function InteractiveLayout({
-  socialLinks, calLink, name, tagline, bio, currentWork, hackathons, posts,
+  socialLinks, calLink15, calLink30, name, tagline, bio, currentWork, hackathons, posts,
 }: Props) {
   const [activeFile, setActiveFile] = useState<{ command: string; content: string } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -323,10 +324,31 @@ export function InteractiveLayout({
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
           <section>
-            <p className="text-[15px]" style={{ color: theme.textDim }}>Always happy to grab a coffee or jump on a quick call.</p>
-            <a href={calLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:text-blue-500 mt-4" style={{ color: theme.text }}>
-              <CalendarIcon />Grab a coffee &rarr;
-            </a>
+            <p className="text-[15px] mb-4" style={{ color: theme.textDim }}>Always happy to grab a coffee or jump on a quick call.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <a
+                href={calLink15}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${cardClass} ghost-card flex flex-col items-center justify-center py-6 text-center`}
+                style={cardStyle}
+              >
+                <CalendarIcon />
+                <span className="font-medium text-[15px] mt-2" style={{ color: theme.text }}>Quick chat</span>
+                <span className="text-xs mt-0.5" style={{ color: theme.textMuted }}>15 minutes</span>
+              </a>
+              <a
+                href={calLink30}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${cardClass} ghost-card flex flex-col items-center justify-center py-6 text-center`}
+                style={cardStyle}
+              >
+                <CalendarIcon />
+                <span className="font-medium text-[15px] mt-2" style={{ color: theme.text }}>Grab a coffee</span>
+                <span className="text-xs mt-0.5" style={{ color: theme.textMuted }}>30 minutes</span>
+              </a>
+            </div>
           </section>
 
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>

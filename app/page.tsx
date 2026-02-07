@@ -12,7 +12,8 @@ export default function Home() {
       tagline={siteData.tagline}
       bio={siteData.bio}
       socialLinks={siteData.socialLinks}
-      calLink={siteData.calLink}
+      calLink15={siteData.calLink15}
+      calLink30={siteData.calLink30}
       currentWork={currentWork}
       hackathons={siteData.hackathons}
       posts={posts.map((p) => ({

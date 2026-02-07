@@ -214,12 +214,30 @@ export function Terminal({ activeFile, initialFiles = {}, initialUrls = {}, them
       return commands.filter((c) => c.startsWith(partial));
     }
 
-    // Completing a file/dir argument
+    const cmd = parts[0].toLowerCase();
     const arg = parts[parts.length - 1];
+
+    // Theme command: complete theme names and flags
+    if (cmd === "theme") {
+      const themeOptions = [...THEME_NAMES, "--list", "--set", "--help"];
+      return themeOptions.filter((o) => o.startsWith(arg));
+    }
+
+    // Man command: complete command names
+    if (cmd === "man") {
+      return commands.filter((c) => c.startsWith(arg));
+    }
+
+    // cd command: complete directory names
+    if (cmd === "cd") {
+      const currentDir = cwd === "~" ? "~" : cwd;
+      const entries = (dirs[currentDir] || []).filter((e) => e.endsWith("/"));
+      return entries.filter((e) => e.startsWith(arg));
+    }
+
+    // File/dir argument completion
     const currentDir = cwd === "~" ? "~" : cwd;
     const entries = dirs[currentDir] || [];
-
-    // Also include files in fs that are in the current directory
     const allFiles: string[] = [...entries];
     for (const key of Object.keys(fs)) {
       if (cwd === "~" && !key.includes("/")) {

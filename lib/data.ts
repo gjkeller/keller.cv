@@ -27,7 +27,8 @@ export interface SiteData {
   work: WorkItem[];
   hackathons: HackathonWin[];
   socialLinks: SocialLink[];
-  calLink: string;
+  calLink15: string;
+  calLink30: string;
 }
 
 export const siteData: SiteData = {
@@ -79,16 +80,16 @@ export const siteData: SiteData = {
     {
       name: "HackTX 2025",
       prize: "1st Place — $4,000",
-      project: "Rocket Racer",
+      project: "AstroDoodle.party",
       url: "https://devpost.com/software/rocket-racer-l1hmn6",
       detail: "Built a piano tiles-style rhythm game controlled by physical wands in 24 hours at HackTX 2025. Players wave wands to hit notes in time with music, using real-time motion tracking. Won first place and the $4,000 grand prize. Built entirely with Cursor.",
     },
     {
-      name: "RecordHacks",
+      name: "RecordHacks 2025",
       prize: "Winner",
       project: "The Beat Box",
       url: "https://devpost.com/software/the-beat-box",
-      detail: "Created The Beat Box at RecordHacks — a music creation tool that lets you compose beats through an interactive visual interface. Focused on making music production accessible to people with no prior experience.",
+      detail: "Created The Beat Box at RecordHacks 2025 — a music creation tool that lets you compose beats through an interactive visual interface. The twist: it moderately tazes users that don't play the notes right. Focused on making music production both accessible and high-stakes.",
     },
   ],
   socialLinks: [
@@ -97,5 +98,6 @@ export const siteData: SiteData = {
     { label: "X", url: "https://twitter.com/gabrieljkeller" },
     { label: "Devpost", url: "https://devpost.com/gjkeller" },
   ],
-  calLink: "https://cal.com/gjkeller",
+  calLink15: "https://calendar.notion.so/meet/gjkeller/15m",
+  calLink30: "https://calendar.notion.so/meet/gjkeller/30m",
 };

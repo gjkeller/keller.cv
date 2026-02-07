@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import type { WorkItem, HackathonWin } from "@/lib/data";
-import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon, CalendarIcon } from "./icons";
-import { Terminal, THEME_NAMES } from "./terminal";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import type { WorkItem, HackathonWin, Partner } from "@/lib/data";
+import type { Theme } from "@/lib/themes";
+import { THEMES, THEME_NAMES, resolveAutoTheme } from "@/lib/themes";
+import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
+import { Terminal } from "./terminal";
 
+/* ── Social icon map ── */
 const socialIcons: Record<string, React.ReactNode> = {
   GitHub: <GithubIcon />, LinkedIn: <LinkedinIcon />, X: <XIcon />, Devpost: <DevpostIcon />,
 };
 
+/* ── Props ── */
 interface Props {
   socialLinks: { label: string; url: string }[];
   calLink15: string;
@@ -19,88 +23,31 @@ interface Props {
   currentWork: WorkItem[];
   hackathons: HackathonWin[];
   posts: { slug: string; title: string; date: string; description?: string; content: string }[];
+  terminalFiles: Record<string, string>;
+  acmSales: { detail: string; partners: Partner[] };
 }
 
-/* ── Theme presets ── */
-export interface Theme {
-  name: string;
-  bg: string;
-  text: string;
-  textDim: string;
-  textMuted: string;
-  border: string;
-  cardHoverBg: string;
-  cardHoverBorder: string;
-  cardShadow: string;
-  cardActiveShadow: string;
-  termBg: string;
-  termBarBg: string;
-  termBarBorder: string;
-  termText: string;
-  termDim: string;
-  isDark: boolean;
-}
-
-export const THEMES: Theme[] = [
-  {
-    name: "light",
-    bg: "#FAFAFA", text: "#111827", textDim: "#6B7280", textMuted: "#9CA3AF",
-    border: "#E5E7EB", cardHoverBg: "#EEEEF0", cardHoverBorder: "rgba(209,213,219,0.6)",
-    cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.08), inset -1px -1px 3px rgba(255,255,255,0.7)",
-    cardActiveShadow: "inset 3px 3px 8px rgba(0,0,0,0.1), inset -1px -1px 3px rgba(255,255,255,0.6)",
-    termBg: "#FAFAFA", termBarBg: "#F0F0F0", termBarBorder: "#E5E7EB",
-    termText: "#1F2937", termDim: "#6B7280", isDark: false,
-  },
-  {
-    name: "dark-blue",
-    bg: "#0F172A", text: "#E2E8F0", textDim: "#94A3B8", textMuted: "#64748B",
-    border: "#1E293B", cardHoverBg: "#1E293B", cardHoverBorder: "rgba(51,65,85,0.6)",
-    cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.3), inset -1px -1px 3px rgba(255,255,255,0.03)",
-    cardActiveShadow: "inset 3px 3px 8px rgba(0,0,0,0.4), inset -1px -1px 3px rgba(255,255,255,0.02)",
-    termBg: "#0F172A", termBarBg: "#1E293B", termBarBorder: "#334155",
-    termText: "#E2E8F0", termDim: "#94A3B8", isDark: true,
-  },
-  {
-    name: "dark-gray",
-    bg: "#18181B", text: "#F4F4F5", textDim: "#A1A1AA", textMuted: "#71717A",
-    border: "#27272A", cardHoverBg: "#27272A", cardHoverBorder: "rgba(63,63,70,0.6)",
-    cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.3), inset -1px -1px 3px rgba(255,255,255,0.03)",
-    cardActiveShadow: "inset 3px 3px 8px rgba(0,0,0,0.4), inset -1px -1px 3px rgba(255,255,255,0.02)",
-    termBg: "#18181B", termBarBg: "#27272A", termBarBorder: "#3F3F46",
-    termText: "#F4F4F5", termDim: "#A1A1AA", isDark: true,
-  },
-  {
-    name: "warm",
-    bg: "#F5F0EB", text: "#1C1917", textDim: "#78716C", textMuted: "#A8A29E",
-    border: "#E7E5E4", cardHoverBg: "#EDE8E3", cardHoverBorder: "rgba(214,211,209,0.6)",
-    cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.06), inset -1px -1px 3px rgba(255,255,255,0.7)",
-    cardActiveShadow: "inset 3px 3px 8px rgba(0,0,0,0.08), inset -1px -1px 3px rgba(255,255,255,0.6)",
-    termBg: "#FAF8F5", termBarBg: "#F0EDE8", termBarBorder: "#E7E5E4",
-    termText: "#1C1917", termDim: "#78716C", isDark: false,
-  },
-  {
-    name: "midnight",
-    bg: "#020617", text: "#CBD5E1", textDim: "#64748B", textMuted: "#475569",
-    border: "#0F172A", cardHoverBg: "#0F172A", cardHoverBorder: "rgba(30,41,59,0.8)",
-    cardShadow: "inset 2px 2px 6px rgba(0,0,0,0.5), inset -1px -1px 3px rgba(255,255,255,0.02)",
-    cardActiveShadow: "inset 3px 3px 8px rgba(0,0,0,0.6), inset -1px -1px 3px rgba(255,255,255,0.01)",
-    termBg: "#020617", termBarBg: "#0F172A", termBarBorder: "#1E293B",
-    termText: "#CBD5E1", termDim: "#64748B", isDark: true,
-  },
-];
-
-function getTerminalFile(type: string, id: string, currentWork: WorkItem[], hackathons: HackathonWin[], posts: Props["posts"]): { command: string; content: string } | null {
+/* ── Build terminal file content from data ── */
+function getTerminalFile(
+  type: string,
+  id: string,
+  currentWork: WorkItem[],
+  hackathons: HackathonWin[],
+  posts: Props["posts"],
+): { command: string; content: string } | null {
   if (type === "work") {
     const item = currentWork.find((w) => w.company === id);
     if (!item) return null;
     const slug = item.company.toLowerCase().replace(/\s+/g, "-");
-    return { command: `cat ${slug}.md`, content: `# ${item.company}\n\n**${item.role}**\n${item.url}\n\n${item.detail}` };
+    const img = item.image ? `\n![${item.company}](${item.image})\n` : "";
+    return { command: `cat ${slug}.md`, content: `# ${item.company}\n\n**${item.role}**\n${item.url}${img}\n${item.detail}` };
   }
   if (type === "hackathon") {
     const item = hackathons.find((h) => h.name === id);
     if (!item) return null;
     const slug = item.project.toLowerCase().replace(/\s+/g, "-");
-    return { command: `cat projects/${slug}.md`, content: `# ${item.project}\n\n**${item.name}** · ${item.prize}\n${item.url}\n\n${item.detail}` };
+    const img = item.image ? `\n![${item.project}](${item.image})\n` : "";
+    return { command: `cat projects/${slug}.md`, content: `# ${item.project}\n\n**${item.name}** · ${item.prize}\n${item.url}${img}\n${item.detail}` };
   }
   if (type === "post") {
     const post = posts.find((p) => p.slug === id);
@@ -115,12 +62,14 @@ function buildInitialFiles(currentWork: WorkItem[], hackathons: HackathonWin[], 
   const urls: Record<string, string> = {};
   for (const item of currentWork) {
     const slug = item.company.toLowerCase().replace(/\s+/g, "-");
-    files[`${slug}.md`] = `# ${item.company}\n\n**${item.role}**\n${item.url}\n\n${item.detail}`;
+    const img = item.image ? `\n![${item.company}](${item.image})\n` : "";
+    files[`${slug}.md`] = `# ${item.company}\n\n**${item.role}**\n${item.url}${img}\n${item.detail}`;
     if (item.url) urls[`${slug}.md`] = item.url;
   }
   for (const win of hackathons) {
     const slug = win.project.toLowerCase().replace(/\s+/g, "-");
-    files[`projects/${slug}.md`] = `# ${win.project}\n\n**${win.name}** · ${win.prize}\n${win.url}\n\n${win.detail}`;
+    const img = win.image ? `\n![${win.project}](${win.image})\n` : "";
+    files[`projects/${slug}.md`] = `# ${win.project}\n\n**${win.name}** · ${win.prize}\n${win.url}${img}\n${win.detail}`;
     if (win.url) urls[`projects/${slug}.md`] = win.url;
   }
   for (const post of posts) {
@@ -130,26 +79,57 @@ function buildInitialFiles(currentWork: WorkItem[], hackathons: HackathonWin[], 
   return { files, urls };
 }
 
+/* ── Small icons ── */
 function TerminalIcon() {
   return (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>);
 }
 
+/* ── Ghost card styles ── */
+function ghostCardStyle(theme: Theme) {
+  return {
+    ["--hover-bg" as string]: theme.cardHoverBg,
+    ["--hover-border" as string]: theme.cardHoverBorder,
+    ["--hover-shadow" as string]: theme.cardShadow,
+    ["--active-shadow" as string]: theme.cardActiveShadow,
+  };
+}
+const cardClass = "w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
+
+/* ── Main layout ── */
 export function InteractiveLayout({
-  socialLinks, calLink15, calLink30, name, tagline, bio, currentWork, hackathons, posts,
+  socialLinks, calLink15, calLink30, name, tagline, bio,
+  currentWork, hackathons, posts, terminalFiles, acmSales,
 }: Props) {
   const [activeFile, setActiveFile] = useState<{ command: string; content: string } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
-  const [themeIdx, setThemeIdx] = useState(0);
+  const [themeMode, setThemeMode] = useState<string>("auto");
+  const [systemDark, setSystemDark] = useState(false);
 
-  const theme = THEMES[themeIdx];
+  // Detect system color scheme
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    setSystemDark(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Resolve actual theme from mode
+  const theme: Theme = useMemo(() => {
+    if (themeMode === "auto") return resolveAutoTheme(systemDark);
+    return THEMES.find((t) => t.name === themeMode) || THEMES[0];
+  }, [themeMode, systemDark]);
+
   const initialFiles = useMemo(() => buildInitialFiles(currentWork, hackathons, posts), [currentWork, hackathons, posts]);
 
   const handleThemeChange = useCallback((themeName: string) => {
-    const idx = THEMES.findIndex((t) => t.name === themeName);
-    if (idx !== -1) setThemeIdx(idx);
+    if (themeName === "auto" || THEME_NAMES.includes(themeName)) {
+      setThemeMode(themeName);
+    }
   }, []);
 
   const handleClick = useCallback((type: string, id: string) => {
@@ -164,13 +144,7 @@ export function InteractiveLayout({
     setMobileExpanded((prev) => (prev === key ? null : key));
   }, []);
 
-  const cardClass = `w-full text-left -mx-3 px-3.5 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent`;
-  const cardStyle = {
-    ["--hover-bg" as string]: theme.cardHoverBg,
-    ["--hover-border" as string]: theme.cardHoverBorder,
-    ["--hover-shadow" as string]: theme.cardShadow,
-    ["--active-shadow" as string]: theme.cardActiveShadow,
-  };
+  const cardStyle = ghostCardStyle(theme);
 
   return (
     <main className="min-h-screen transition-colors duration-300" style={{ backgroundColor: theme.bg }}>
@@ -179,7 +153,7 @@ export function InteractiveLayout({
         .ghost-card:active { box-shadow: var(--active-shadow); }
       `}</style>
 
-      {/* Content column — animates between centered and left-aligned, fades on fullscreen */}
+      {/* Content column */}
       <div
         className="px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{
@@ -189,6 +163,7 @@ export function InteractiveLayout({
         }}
       >
         <div className="max-w-[480px] mx-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
+          {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -206,88 +181,85 @@ export function InteractiveLayout({
             <p className="text-[15px] mt-6 leading-relaxed" style={{ color: theme.textDim }}>{bio}</p>
           </header>
 
-          {/* Open terminal button — shows above first hr when terminal is closed */}
+          {/* Open terminal button — styled as ghost card */}
           {!terminalOpen && (
-            <button onClick={() => setTerminalOpen(true)} className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:text-blue-500 mt-6" style={{ color: theme.text }}>
-              <TerminalIcon />Open terminal &rarr;
+            <button
+              onClick={() => setTerminalOpen(true)}
+              className={`${cardClass} ghost-card inline-flex items-center gap-2 mt-6 !w-auto`}
+              style={cardStyle}
+            >
+              <span style={{ color: theme.textMuted }}><TerminalIcon /></span>
+              <span className="text-sm font-medium" style={{ color: theme.text }}>Open terminal</span>
             </button>
           )}
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
           {/* Currently */}
-          <section>
-            <h2 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: theme.textMuted }}>Currently</h2>
-            <div>
-              {currentWork.map((item) => {
-                const key = `work-${item.company}`;
-                const isMobileOpen = mobileExpanded === key;
-                return (
-                  <div key={item.company}>
-                    <button onClick={() => handleClick("work", item.company)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
-                      <div className="min-w-0">
-                        <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
-                        <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{item.description}</p>
-                      </div>
-                      <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
-                    </button>
-                    <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
-                      <div className="min-w-0">
-                        <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
-                        <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{item.description}</p>
-                      </div>
-                      <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
-                    </button>
-                    <div className={`lg:hidden overflow-hidden transition-all duration-300 ${isMobileOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
-                      <div className="px-3 pb-3 pt-1">
-                        <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{item.detail}</p>
-                        {item.url && <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Visit &rarr;</a>}
-                      </div>
+          <Section title="Currently" theme={theme}>
+            {currentWork.map((item) => {
+              const key = `work-${item.company}`;
+              const isMobileOpen = mobileExpanded === key;
+              return (
+                <div key={item.company}>
+                  <button onClick={() => handleClick("work", item.company)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
+                    <div className="min-w-0">
+                      <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
+                      <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{item.description}</p>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                    <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
+                  </button>
+                  <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
+                    <div className="min-w-0">
+                      <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
+                      <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{item.description}</p>
+                    </div>
+                    <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
+                  </button>
+                  <MobileDetail open={isMobileOpen} theme={theme}>
+                    <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{item.detail}</p>
+                    {item.url && <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Visit &rarr;</a>}
+                  </MobileDetail>
+                </div>
+              );
+            })}
+          </Section>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
-          <section>
-            <h2 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: theme.textMuted }}>Hackathons</h2>
-            <div>
-              {hackathons.map((win) => {
-                const key = `hackathon-${win.name}`;
-                const isMobileOpen = mobileExpanded === key;
-                return (
-                  <div key={win.name}>
-                    <button onClick={() => handleClick("hackathon", win.name)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
-                      <div className="min-w-0">
-                        <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
-                        <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{win.name}</p>
-                      </div>
-                      <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
-                    </button>
-                    <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
-                      <div className="min-w-0">
-                        <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
-                        <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{win.name}</p>
-                      </div>
-                      <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
-                    </button>
-                    <div className={`lg:hidden overflow-hidden transition-all duration-300 ${isMobileOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
-                      <div className="px-3 pb-3 pt-1">
-                        <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{win.detail}</p>
-                        <a href={win.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">View on Devpost &rarr;</a>
-                      </div>
+          {/* Hackathons */}
+          <Section title="Hackathons" theme={theme}>
+            {hackathons.map((win) => {
+              const key = `hackathon-${win.name}`;
+              const isMobileOpen = mobileExpanded === key;
+              return (
+                <div key={win.name}>
+                  <button onClick={() => handleClick("hackathon", win.name)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
+                    <div className="min-w-0">
+                      <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
+                      <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{win.name}</p>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                    <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
+                  </button>
+                  <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
+                    <div className="min-w-0">
+                      <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
+                      <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{win.name}</p>
+                    </div>
+                    <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
+                  </button>
+                  <MobileDetail open={isMobileOpen} theme={theme}>
+                    <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{win.detail}</p>
+                    <a href={win.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">View on Devpost &rarr;</a>
+                  </MobileDetail>
+                </div>
+              );
+            })}
+          </Section>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
+          {/* Writing */}
           <section>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
@@ -308,12 +280,10 @@ export function InteractiveLayout({
                         <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
                         <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
                       </button>
-                      <div className={`lg:hidden overflow-hidden transition-all duration-300 ${isMobileOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
-                        <div className="px-3 pb-3 pt-1">
-                          <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{post.description || post.content.slice(0, 200)}</p>
-                          <a href={`/blog/${post.slug}`} className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Read more &rarr;</a>
-                        </div>
-                      </div>
+                      <MobileDetail open={isMobileOpen} theme={theme}>
+                        <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{post.description || post.content.slice(0, 200)}</p>
+                        <a href={`/blog/${post.slug}`} className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Read more &rarr;</a>
+                      </MobileDetail>
                     </div>
                   );
                 })}
@@ -323,29 +293,38 @@ export function InteractiveLayout({
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
+          {/* ACM Sales */}
+          <section>
+            <h2 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: theme.textMuted }}>Companies I&apos;ve sold to</h2>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: theme.textDim }}>{acmSales.detail}</p>
+            <div className="flex flex-wrap items-center gap-4">
+              {acmSales.partners.map((p) => (
+                <img
+                  key={p.name}
+                  src={p.logo}
+                  alt={p.name}
+                  title={p.name}
+                  className="h-5 w-auto object-contain opacity-60 hover:opacity-100 transition-opacity"
+                  style={{ filter: theme.isDark ? "brightness(0) invert(0.7)" : undefined }}
+                />
+              ))}
+            </div>
+          </section>
+
+          <hr className="my-8" style={{ borderColor: theme.border }} />
+
+          {/* Connect */}
           <section>
             <p className="text-[15px] mb-4" style={{ color: theme.textDim }}>Always happy to chat. Book some time and let&apos;s connect.</p>
             <div className="grid grid-cols-2 gap-3">
-              <a
-                href={calLink15}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${cardClass} ghost-card flex items-center gap-3 py-3`}
-                style={cardStyle}
-              >
+              <a href={calLink15} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
                 <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
                 <div>
                   <span className="font-medium text-[14px]" style={{ color: theme.text }}>Quick call</span>
                   <span className="text-xs block" style={{ color: theme.textMuted }}>15 min</span>
                 </div>
               </a>
-              <a
-                href={calLink30}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${cardClass} ghost-card flex items-center gap-3 py-3`}
-                style={cardStyle}
-              >
+              <a href={calLink30} target="_blank" rel="noopener noreferrer" className={`${cardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
                 <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 <div>
                   <span className="font-medium text-[14px]" style={{ color: theme.text }}>Deep dive</span>
@@ -371,6 +350,7 @@ export function InteractiveLayout({
       }`}>
         <Terminal
           activeFile={activeFile}
+          staticFiles={terminalFiles}
           initialFiles={initialFiles.files}
           initialUrls={initialFiles.urls}
           theme={theme}
@@ -381,5 +361,23 @@ export function InteractiveLayout({
         />
       </div>
     </main>
+  );
+}
+
+/* ── Reusable sub-components ── */
+function Section({ title, theme, children }: { title: string; theme: Theme; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: theme.textMuted }}>{title}</h2>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+function MobileDetail({ open, theme, children }: { open: boolean; theme: Theme; children: React.ReactNode }) {
+  return (
+    <div className={`lg:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
+      <div className="px-3 pb-3 pt-1">{children}</div>
+    </div>
   );
 }

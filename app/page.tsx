@@ -1,10 +1,12 @@
 import { siteData } from "@/lib/data";
 import { getBlogPosts } from "@/lib/mdx";
+import { getTerminalFiles } from "@/lib/terminal-files";
 import { InteractiveLayout } from "./interactive-layout";
 
 export default function Home() {
   const currentWork = siteData.work.filter((w) => w.current);
   const posts = getBlogPosts().slice(0, 3);
+  const terminalFiles = getTerminalFiles();
 
   return (
     <InteractiveLayout
@@ -23,6 +25,8 @@ export default function Home() {
         description: p.description,
         content: p.content,
       }))}
+      terminalFiles={terminalFiles}
+      acmSales={siteData.acmSales}
     />
   );
 }

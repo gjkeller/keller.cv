@@ -517,6 +517,9 @@ export function Terminal({
     }
     // Ctrl+C: cancel streaming, clear input, or double-press to exit chat
     if (e.key === "c" && e.ctrlKey) {
+      // Allow native copy when text is selected
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) return;
       e.preventDefault();
       if (isStreaming) { abortRef.current?.abort(); return; }
       if (inputValue) { setInputValue(""); setCursorPos(0); return; }
@@ -547,6 +550,39 @@ export function Terminal({
       return;
     }
     if (isStreaming) return;
+    // Horizontal arrow keys: handle directly to avoid hidden-input selection lag
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      let pos = cursorPos;
+      if (e.key === "ArrowLeft") {
+        if (e.metaKey) {
+          pos = 0;
+        } else if (e.altKey) {
+          // Option+Left: jump to start of previous word
+          let i = pos - 1;
+          while (i > 0 && inputValue[i - 1] === ' ') i--;
+          while (i > 0 && inputValue[i - 1] !== ' ') i--;
+          pos = Math.max(0, i);
+        } else {
+          pos = Math.max(0, pos - 1);
+        }
+      } else {
+        if (e.metaKey) {
+          pos = inputValue.length;
+        } else if (e.altKey) {
+          // Option+Right: jump to end of next word
+          let i = pos;
+          while (i < inputValue.length && inputValue[i] === ' ') i++;
+          while (i < inputValue.length && inputValue[i] !== ' ') i++;
+          pos = i;
+        } else {
+          pos = Math.min(inputValue.length, pos + 1);
+        }
+      }
+      setCursorPos(pos);
+      if (inputRef.current) inputRef.current.selectionStart = inputRef.current.selectionEnd = pos;
+      return;
+    }
     if (e.key === "Enter") { handleSubmit(); return; }
     if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -582,7 +618,7 @@ export function Terminal({
         setHistory((prev) => [...prev, { prompt: currentPrompt, command: inputValue, output: completions.join("  ") }]);
       }
     }
-  }, [inputValue, cmdHistory, historyIdx, autoPhase, handleSubmit, getCompletions, currentPrompt, isStreaming, chatMode]);
+  }, [inputValue, cursorPos, cmdHistory, historyIdx, autoPhase, handleSubmit, getCompletions, currentPrompt, isStreaming, chatMode]);
 
   /* ── Auto-type lifecycle ── */
   useEffect(() => {
@@ -646,11 +682,39 @@ export function Terminal({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   });
 
+  const isAutoTyping = autoPhase !== "idle";
+
   const focusInput = () => {
     const sel = window.getSelection();
     if (sel && sel.toString().length > 0) return;
     inputRef.current?.focus();
   };
+
+  /* ── Container keydown: refocus input when typing with text selected ── */
+  const handleContainerKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (document.activeElement === inputRef.current) return;
+    if (['Control', 'Alt', 'Shift', 'Meta', 'CapsLock', 'Tab', 'Escape'].includes(e.key)) return;
+
+    // Allow native copy (Ctrl+C / Cmd+C) when text is selected
+    if (e.key === 'c' && (e.ctrlKey || e.metaKey)) return;
+
+    window.getSelection()?.removeAllRanges();
+    inputRef.current?.focus();
+
+    // For printable chars, manually insert since the input wasn't focused for this keystroke
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !isAutoTyping) {
+      e.preventDefault();
+      const pos = cursorPos;
+      setInputValue(prev => prev.slice(0, pos) + e.key + prev.slice(pos));
+      const newPos = pos + 1;
+      setCursorPos(newPos);
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.selectionStart = inputRef.current.selectionEnd = newPos;
+        }
+      });
+    }
+  }, [cursorPos, isAutoTyping]);
 
   /* ── Shared markdown renderer with terminal styles ── */
   const mdStyles: MdStyles = useMemo(() => ({
@@ -664,19 +728,20 @@ export function Terminal({
     return renderMarkdown(text, mdStyles);
   }, [mdStyles]);
 
-  const isAutoTyping = autoPhase !== "idle";
-
   return (
     <div
       className={`w-full h-full flex flex-col overflow-hidden transition-colors duration-300 ${borderless ? "" : "rounded-xl border"}`}
       style={{
         backgroundColor: theme.termBg,
         borderColor: theme.termBarBorder,
+        outline: 'none',
         boxShadow: dark
           ? "0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)"
           : "0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8)",
       }}
       onClick={focusInput}
+      onKeyDown={handleContainerKeyDown}
+      tabIndex={-1}
     >
       {/* Title bar */}
       <div
@@ -733,7 +798,7 @@ export function Terminal({
               <span style={{ color: theme.termText }}>
                 {autoPhase === "typing-cmd" ? cmdTyper.displayed : autoCommand}
               </span>
-              {autoPhase === "typing-cmd" && <span className="inline-block min-w-[7px] h-[14px] align-middle animate-cursor font-mono text-[13px] leading-[14px]" style={{ backgroundColor: theme.termText, color: theme.termBg }}>{" "}</span>}
+              {autoPhase === "typing-cmd" && <span className="animate-cursor" style={{ '--cursor-bg': theme.termText, '--cursor-fg': theme.termBg, '--cursor-text': theme.termText } as React.CSSProperties}>{"\u00A0"}</span>}
             </div>
             {autoPhase === "typing-output" && (
               <div className="mt-1">{renderLine(outputTyper.displayed)}</div>
@@ -760,16 +825,16 @@ export function Terminal({
             {isStreaming ? (
               <>
                 <span style={{ color: theme.termText }}>{inputValue}</span>
-                <span className="inline-block min-w-[7px] h-[14px] align-middle animate-cursor ml-0.5 font-mono text-[13px] leading-[14px]" style={{ backgroundColor: "#60a5fa", color: theme.termBg }}>{" "}</span>
+                <span className="animate-cursor ml-0.5" style={{ '--cursor-bg': '#60a5fa', '--cursor-fg': theme.termBg, '--cursor-text': 'transparent' } as React.CSSProperties}>{"\u00A0"}</span>
               </>
             ) : (
               <>
                 <span style={{ color: theme.termText }}>{inputValue.slice(0, cursorPos)}</span>
                 <span
                   key={`${cursorPos}-${inputValue.length}`}
-                  className="inline-block min-w-[7px] h-[14px] align-middle animate-cursor font-mono text-[13px] leading-[14px]"
-                  style={{ backgroundColor: theme.termText, color: theme.termBg }}
-                >{inputValue[cursorPos] ?? " "}</span>
+                  className="animate-cursor"
+                  style={{ '--cursor-bg': theme.termText, '--cursor-fg': theme.termBg, '--cursor-text': theme.termText } as React.CSSProperties}
+                >{inputValue[cursorPos] ?? '\u00A0'}</span>
                 <span style={{ color: theme.termText }}>{inputValue.slice(cursorPos + 1)}</span>
               </>
             )}

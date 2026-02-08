@@ -49,8 +49,14 @@ body {
 }
 
 @keyframes cursor-blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%, 50% {
+    background-color: var(--cursor-bg);
+    color: var(--cursor-fg);
+  }
+  51%, 100% {
+    background-color: transparent;
+    color: var(--cursor-text);
+  }
 }
 
 .animate-cursor {

@@ -135,7 +135,13 @@ export function InteractiveLayout({
     setThemeMode(themeName);
   }, [setThemeMode]);
 
-  const handleClick = useCallback((type: string, id: string) => {
+  const handleClick = useCallback((e: React.MouseEvent, type: string, id: string, url?: string) => {
+    // Cmd-click (or Ctrl-click on non-Mac) opens the URL in a new tab
+    if ((e.metaKey || e.ctrlKey) && url) {
+      window.open(url, "_blank");
+      return;
+    }
+
     const key = `${type}-${id}`;
     if (activeId === key) { setActiveId(null); return; }
     setActiveId(key);
@@ -313,7 +319,7 @@ export function InteractiveLayout({
               const isMobileOpen = mobileExpanded === key;
               return (
                 <div key={item.company}>
-                  <button onClick={() => handleClick("work", item.company)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
+                  <button onClick={(e) => handleClick(e, "work", item.company, item.url)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
                     <div className="min-w-0">
                       <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
                       <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{item.description}</p>
@@ -345,7 +351,7 @@ export function InteractiveLayout({
               const isMobileOpen = mobileExpanded === key;
               return (
                 <div key={win.name}>
-                  <button onClick={() => handleClick("hackathon", win.name)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
+                  <button onClick={(e) => handleClick(e, "hackathon", win.name, win.url)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
                     <div className="min-w-0">
                       <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
                       <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{win.name}</p>
@@ -383,7 +389,7 @@ export function InteractiveLayout({
                   const isMobileOpen = mobileExpanded === key;
                   return (
                     <div key={post.slug}>
-                      <button onClick={() => handleClick("post", post.slug)} className={`hidden lg:flex ${cardClass} ghost-card items-baseline justify-between gap-4`} style={cardStyle}>
+                      <button onClick={(e) => handleClick(e, "post", post.slug, `/blog/${post.slug}`)} className={`hidden lg:flex ${cardClass} ghost-card items-baseline justify-between gap-4`} style={cardStyle}>
                         <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
                         <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
                       </button>

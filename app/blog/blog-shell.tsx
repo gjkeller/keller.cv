@@ -1,34 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { useTheme } from "@/lib/theme-context";
+import { usePathname } from "next/navigation";
 
 /** Shared chrome for all blog pages — themed via context */
-export function BlogShell({ children }: { children: React.ReactNode }) {
+export function BlogShell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   const { theme } = useTheme();
+  const pathname = usePathname();
+  const isIndex = pathname === "/blog";
 
   return (
     <div
       className="min-h-screen transition-colors duration-300"
       style={{ backgroundColor: theme.bg }}
     >
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Navigation */}
-        <header
-          className="mb-8 pb-4 border-b"
-          style={{ borderColor: theme.border }}
-        >
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 transition-colors hover:opacity-80"
-            style={{ color: theme.textDim }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Home
-          </Link>
-        </header>
+      {/* Blog header — simple nav */}
+      <header
+        className="border-b"
+        style={{ borderColor: theme.border }}
+      >
+        <div className={`mx-auto px-10 sm:px-24 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
+          <nav className="flex items-center justify-center gap-6 h-12 text-sm">
+            <Link
+              href="/"
+              className="transition-colors hover:opacity-80"
+              style={{ color: theme.textMuted }}
+            >
+              Home
+            </Link>
+            <Link
+              href="/blog"
+              className="transition-colors hover:opacity-80"
+              style={{ color: isIndex ? theme.text : theme.textMuted, fontWeight: isIndex ? 500 : 400 }}
+            >
+              Blog
+            </Link>
+          </nav>
+        </div>
+      </header>
 
+      <div className={`mx-auto px-10 sm:px-24 py-10 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
         {children}
 
         {/* Footer */}
@@ -38,13 +50,13 @@ export function BlogShell({ children }: { children: React.ReactNode }) {
         >
           <div className="flex justify-between items-center">
             <Link
-              href="/"
-              className="transition-colors hover:opacity-80"
+              href="/blog"
+              className="text-sm transition-colors hover:opacity-80"
               style={{ color: theme.textDim }}
             >
-              &larr; Back to Home
+              &larr; All posts
             </Link>
-            <div className="text-sm" style={{ color: theme.textMuted }}>
+            <div className="text-xs" style={{ color: theme.textMuted }}>
               &copy; {new Date().getFullYear()} Gabriel Keller
             </div>
           </div>

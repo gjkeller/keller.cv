@@ -3,14 +3,52 @@ import Image from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
 
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function getTextContent(children: ReactNode): string {
+  if (typeof children === "string") return children;
+  if (Array.isArray(children)) return children.map(getTextContent).join("");
+  if (children && typeof children === "object" && "props" in children) {
+    return getTextContent((children as { props: { children?: ReactNode } }).props.children);
+  }
+  return "";
+}
+
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
     // Use semantic HTML elements and let global CSS handle styling
     h1: ({ children }: { children?: ReactNode }) => <h1>{children}</h1>,
-    h2: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-    h3: ({ children }: { children?: ReactNode }) => <h3>{children}</h3>,
+    h2: ({ children }: { children?: ReactNode }) => {
+      const id = slugify(getTextContent(children));
+      return <h2 id={id}>{children}</h2>;
+    },
+    h3: ({ children }: { children?: ReactNode }) => {
+      const id = slugify(getTextContent(children));
+      return <h3 id={id}>{children}</h3>;
+    },
     h4: ({ children }: { children?: ReactNode }) => <h4>{children}</h4>,
-    p: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
+    p: ({ children }: { children?: ReactNode }) => {
+      // If the paragraph contains only an image (MDX wraps ![...] in <p>),
+      // render the children directly to avoid <div> inside <p> hydration error.
+      const childArray = Array.isArray(children) ? children : [children];
+      const hasBlockChild = childArray.some(
+        (child) =>
+          child &&
+          typeof child === "object" &&
+          "type" in child &&
+          (child.type === "img" || (child.props && child.props.src !== undefined))
+      );
+      if (hasBlockChild) return <>{children}</>;
+      return <p>{children}</p>;
+    },
 
     a: ({ href, children }: { href?: string; children?: ReactNode }) => {
       if (href?.startsWith("http")) {
@@ -79,7 +117,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
       height,
       ...props
     }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-      <div style={{ margin: "2rem 0", textAlign: "center" }}>
+      <figure style={{ margin: "2rem 0", textAlign: "center" }}>
         <Image
           src={typeof src === "string" ? src : ""}
           alt={alt || ""}
@@ -100,7 +138,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
           style={{ borderRadius: "0.5rem", maxWidth: "100%", height: "auto" }}
         />
         {alt && (
-          <p
+          <figcaption
             style={{
               fontSize: "0.875rem",
               color: "#6b7280",
@@ -109,9 +147,9 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
             }}
           >
             {alt}
-          </p>
+          </figcaption>
         )}
-      </div>
+      </figure>
     ),
 
     hr: () => <hr />,

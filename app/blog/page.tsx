@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { Calendar, Clock } from "lucide-react";
 import { getBlogPosts } from "@/lib/mdx";
 import { BlogShell } from "./blog-shell";
@@ -69,6 +70,18 @@ export default function BlogPage() {
                 className="border-b pb-8 last:border-b-0"
                 style={{ borderColor: "var(--theme-border)" }}
               >
+                {post.image && (
+                  <Link href={`/blog/${post.slug}`} className="block mb-4 -mx-2 sm:mx-0 rounded-lg overflow-hidden">
+                    <Image
+                      src={post.image}
+                      alt={post.title}
+                      width={1200}
+                      height={630}
+                      className="w-full h-auto hover:scale-[1.02] transition-transform duration-300"
+                    />
+                  </Link>
+                )}
+
                 <div className="mb-4">
                   <Link href={`/blog/${post.slug}`} className="group">
                     <h2
@@ -107,24 +120,6 @@ export default function BlogPage() {
                     >
                       {post.description}
                     </p>
-                  )}
-
-                  {post.tags && post.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {post.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-1 text-xs rounded-full"
-                          style={{
-                            backgroundColor: "var(--theme-card-hover-bg)",
-                            color: "var(--theme-text-dim)",
-                            border: "1px solid var(--theme-border)",
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
                   )}
 
                   <Link

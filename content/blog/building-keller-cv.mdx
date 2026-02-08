@@ -1,7 +1,7 @@
 ---
 title: "How I built keller.cv with Cursor and Claude in one afternoon"
 description: "60 commits, 9 prototypes, one afternoon. I rebuilt my entire personal site with Cursor and Claude Opus 4.6 in a single session. Here's how."
-image: "/images/blog/building-keller-cv/og-cover.jpg"
+image: "/images/blog/building-keller-cv/og-cover.png"
 date: "2026-02-07"
 author: "Gabriel Keller"
 tags: ["design", "next.js", "cursor", "ai"]
@@ -169,11 +169,26 @@ If you're reading this, go try it. Visit [keller.cv](https://keller.cv) and type
 
 ## Mobile
 
-The terminal is a desktop feature. On mobile, it's hidden. Tapping a card expands it inline with a slide-down animation showing the same content.
+Just because this site was coded entirely with AI doesn't mean the user experience has to suck.
 
-![Mobile view - clean single column](/images/blog/building-keller-cv/final-mobile.png)
+The terminal is fully supported on mobile. Tap "Access bash terminal" and it opens as a fullscreen overlay. `agent`, `cat`, `theme midnight` -- everything works, right from your phone.
 
-I considered a mobile terminal but typing shell commands on a phone keyboard would be painful. The inline expansion works well enough. If you want the full experience, pull it up on a laptop.
+<div style={{ display: "flex", gap: "1rem", justifyContent: "center", margin: "2rem 0" }}>
+  <div style={{ flex: "0 1 280px", textAlign: "center" }}>
+    <img src="/images/blog/building-keller-cv/mobile-home.png" alt="Mobile home — terminal button visible" style={{ borderRadius: "0.5rem", width: "100%", height: "auto" }} />
+    <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.5rem", fontStyle: "italic" }}>Home with terminal access</p>
+  </div>
+  <div style={{ flex: "0 1 280px", textAlign: "center" }}>
+    <img src="/images/blog/building-keller-cv/mobile-terminal.png" alt="Mobile terminal — fullscreen with Done button" style={{ borderRadius: "0.5rem", width: "100%", height: "auto" }} />
+    <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.5rem", fontStyle: "italic" }}>Fullscreen terminal overlay</p>
+  </div>
+</div>
+
+I spent real time making this feel native. The terminal tracks the iOS visual viewport so it resizes when the keyboard opens instead of getting buried behind it. The traffic light buttons are swapped for a thumb-friendly "Done" pill. Body scroll is locked so there's no background bounce. Small details, but they're the difference between "works on mobile" and "feels good on mobile."
+
+Cards work without the terminal too -- tap to expand inline. Two interaction patterns for two contexts: quick browsing and deep exploration. The user picks whichever feels right.
+
+This is the part AI tools still can't do on their own. Claude wrote every line of the mobile handling, but it didn't know to do any of it until I told it to. The model doesn't pull up your site on an iPhone and notice the keyboard is covering the input. That's still the human's job.
 
 ## The AI workflow, honestly
 

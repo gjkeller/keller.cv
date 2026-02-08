@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getBlogPost, getAllSlugs } from "@/lib/mdx";
 import { MDXContent } from "@/components/mdx-content";
 import { BlogPostClient } from "./blog-post-client";
+import { extractHeadings } from "@/lib/extract-headings";
 
 interface BlogPostPageProps {
   params: Promise<{
@@ -92,6 +93,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   }
 
   const jsonLd = buildArticleJsonLd({ ...post, slug });
+  const headings = extractHeadings(post.content);
 
   return (
     <>
@@ -99,7 +101,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <BlogPostClient post={post}>
+      <BlogPostClient post={post} headings={headings}>
         <MDXContent content={post.content} />
       </BlogPostClient>
     </>

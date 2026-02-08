@@ -80,16 +80,25 @@ export function renderMarkdown(text: string, styles: MdStyles): React.ReactNode[
       const attrs = imgAttr[3] ? parseImageAttrs(imgAttr[3]) : {};
       const w = attrs.width ?? 14;
       const h = attrs.height;
-      return (
-        <span key={i} className="inline-flex items-center">
-          <img
-            src={imgAttr[2]}
-            alt={imgAttr[1]}
-            className="rounded-sm object-contain inline-block"
-            style={{ width: `${w}px`, height: h ? `${h}px` : `${w}px` }}
-          />
-        </span>
+      const img = (
+        <img
+          src={imgAttr[2]}
+          alt={imgAttr[1]}
+          className="rounded-sm object-contain inline-block"
+          style={{ width: `${w}px`, height: h ? `${h}px` : "auto" }}
+        />
       );
+      // Large images (>64px) are clickable to open full-size in a new tab
+      if (w > 64) {
+        return (
+          <span key={i} className="inline-flex items-center">
+            <a href={imgAttr[2]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+              {img}
+            </a>
+          </span>
+        );
+      }
+      return <span key={i} className="inline-flex items-center">{img}</span>;
     }
 
     // Heading with inline image: # Text ![alt](src)

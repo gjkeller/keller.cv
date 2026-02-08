@@ -89,7 +89,7 @@ const MAN_PAGES: Record<string, string> = {
   clear: "clear - clear the terminal screen\n\nUsage: clear\n\nRemoves all previous output from the terminal.",
   man: "man - format and display manual pages\n\nUsage: man <command>\n\nDisplay the manual page for the specified command.",
   theme: `theme - change the color theme\n\nUsage:\n  theme --list       List available themes\n  theme --set <name> Set the active theme\n  theme --help       Show this help\n\nAvailable themes: ${THEME_NAMES.join(", ")}`,
-  agent: "agent - chat with an AI about Gabe\n\nUsage:\n  agent              Enter interactive chat mode\n  agent <message>    Ask a single question\n\nAliases: claude, codex\n\nType 'exit' to leave chat mode.",
+  agent: "agent - chat with an AI about Gabe\n\nUsage:\n  agent              Enter interactive chat mode\n  agent <message>    Ask a question and stay in chat mode\n\nAliases: claude, codex\n\nType 'exit' to leave chat mode.",
 };
 
 /* ── Typewriter hook ── */
@@ -137,6 +137,7 @@ export function Terminal({
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const savedInput = useRef("");
+  const [cursorPos, setCursorPos] = useState(0);
 
   /* ── Agent chat mode ── */
   const [chatMode, setChatMode] = useState(false);
@@ -153,6 +154,11 @@ export function Terminal({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const syncCursor = useCallback(() => {
+    const pos = inputRef.current?.selectionStart ?? 0;
+    setCursorPos((prev) => (prev === pos ? prev : pos));
+  }, []);
 
   const cmdTyper = useTypewriter(autoPhase === "typing-cmd" ? autoCommand : "", 20);
   const outputTyper = useTypewriter(autoPhase === "typing-output" ? autoOutput : "", 6);
@@ -234,7 +240,7 @@ export function Terminal({
   const MSG_CHAR_LIMIT = 1000;
 
   /* ── Agent chat ── */
-  const sendChatMessage = useCallback(async (userMessage: string, oneShot = false, displayCmd?: string) => {
+  const sendChatMessage = useCallback(async (userMessage: string) => {
     // Client-side truncation with notice
     let msg = userMessage;
     let truncNotice = "";
@@ -244,10 +250,10 @@ export function Terminal({
     }
 
     const nextMessages = [...chatMessages, { role: "user" as const, content: msg }];
-    if (!oneShot) setChatMessages(nextMessages);
+    setChatMessages(nextMessages);
 
-    const prompt = oneShot ? currentPrompt : "user> ";
-    const cmdLabel = displayCmd ?? userMessage;
+    const prompt = "user> ";
+    const cmdLabel = userMessage;
 
     // Show user prompt immediately (with truncation notice if applicable)
     setHistory((prev) => [...prev, { prompt, command: cmdLabel, output: truncNotice }]);
@@ -289,7 +295,7 @@ export function Terminal({
 
       // Replace last entry with final output (preserve truncation notice)
       setHistory((prev) => [...prev.slice(0, -1), { prompt, command: cmdLabel, output: truncNotice + (full || "(no response)") }]);
-      if (!oneShot) setChatMessages((prev) => [...prev, { role: "user", content: msg }, { role: "assistant", content: full }]);
+      setChatMessages((prev) => [...prev, { role: "user", content: msg }, { role: "assistant", content: full }]);
       setStreamingOutput("");
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -303,7 +309,56 @@ export function Terminal({
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [chatMessages, currentPrompt, streamingOutput]);
+  }, [chatMessages, streamingOutput]);
+
+  /* ── Agent greeting (no visible user prompt) ── */
+  const sendGreeting = useCallback(async () => {
+    const greetMsg = [{ role: "user" as const, content: "Say a brief, friendly greeting to a new visitor. One or two sentences max. Don't use emojis." }];
+    setChatMessages(greetMsg);
+
+    setIsStreaming(true);
+    setStreamingOutput("");
+
+    try {
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: greetMsg, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        setHistory((prev) => [...prev, { prompt: "", command: "", output: "Ask me anything about Gabe." }]);
+        setIsStreaming(false);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) { setIsStreaming(false); return; }
+
+      const decoder = new TextDecoder();
+      let full = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        setStreamingOutput(full);
+      }
+
+      setHistory((prev) => [...prev, { prompt: "", command: "", output: full || "Ask me anything about Gabe." }]);
+      setChatMessages((prev) => [...prev, { role: "assistant", content: full }]);
+      setStreamingOutput("");
+    } catch {
+      setHistory((prev) => [...prev, { prompt: "", command: "", output: "Ask me anything about Gabe." }]);
+    } finally {
+      setStreamingOutput("");
+      setIsStreaming(false);
+      abortRef.current = null;
+    }
+  }, []);
 
   /* ── Command execution ── */
   const runCommand = useCallback((cmd: string): string => {
@@ -392,20 +447,21 @@ export function Terminal({
       case "agent":
       case "claude":
       case "codex": {
-        if (arg) {
-          // Single-query mode: send message inline, don't enter chat mode
-          sendChatMessage(arg, true, `${base} ${arg}`);
-          return "__AGENT__";
-        }
-        // Enter interactive chat mode
         setChatMode(true);
         setChatMessages([]);
-        return "Entering agent mode. Ask me anything about Gabe.\nType 'exit' to leave.";
+        if (arg) {
+          // Enter chat mode and fire the first message
+          sendChatMessage(arg);
+          return "__AGENT_INLINE__";
+        }
+        // Enter chat mode with a streamed greeting
+        sendGreeting();
+        return "__AGENT_GREET__";
       }
       default:
         return `command not found: ${base}\n\nType 'help' for available commands.`;
     }
-  }, [fs, dirs, urls, cwd, resolvePath, resolveFile, onThemeChange, theme, sendChatMessage]);
+  }, [fs, dirs, urls, cwd, resolvePath, resolveFile, onThemeChange, theme, sendChatMessage, sendGreeting]);
 
   /* ── Submit handler ── */
   const handleSubmit = useCallback(() => {
@@ -413,6 +469,7 @@ export function Terminal({
 
     const cmd = inputValue.trim();
     setInputValue("");
+    setCursorPos(0);
     setHistoryIdx(-1);
     if (!cmd) return;
     setCmdHistory((prev) => [cmd, ...prev]);
@@ -433,18 +490,34 @@ export function Terminal({
 
     const output = runCommand(cmd);
     if (output === "__CLEAR__") { setHistory([]); return; }
-    if (output === "__AGENT__") return; // handled by sendChatMessage
+    if (output === "__AGENT_INLINE__") {
+      // Show the command + a hint, then let sendChatMessage handle the rest
+      setHistory((prev) => [...prev, { prompt: currentPrompt, command: cmd, output: "Agent mode enabled — just type to keep chatting. 'exit' to leave." }]);
+      return;
+    }
+    if (output === "__AGENT_GREET__") {
+      // Show the command; sendGreeting appends a separate entry for the streamed greeting
+      setHistory((prev) => [...prev, { prompt: currentPrompt, command: cmd, output: "" }]);
+      return;
+    }
     setHistory((prev) => [...prev, { prompt: currentPrompt, command: cmd, output }]);
   }, [inputValue, runCommand, currentPrompt, chatMode, isStreaming, sendChatMessage]);
 
   /* ── Key handler ── */
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (autoPhase !== "idle") return;
+    // Ctrl+A: move cursor to start of line
+    if (e.key === "a" && e.ctrlKey) {
+      e.preventDefault();
+      if (inputRef.current) { inputRef.current.selectionStart = inputRef.current.selectionEnd = 0; }
+      setCursorPos(0);
+      return;
+    }
     // Ctrl+C: cancel streaming, clear input, or double-press to exit chat
     if (e.key === "c" && e.ctrlKey) {
       e.preventDefault();
       if (isStreaming) { abortRef.current?.abort(); return; }
-      if (inputValue) { setInputValue(""); return; }
+      if (inputValue) { setInputValue(""); setCursorPos(0); return; }
       // In chat mode with empty input: double Ctrl+C exits
       if (chatMode) {
         const now = Date.now();
@@ -481,14 +554,16 @@ export function Terminal({
       if (historyIdx === -1) savedInput.current = inputValue;
       setHistoryIdx(newIdx);
       setInputValue(cmdHistory[newIdx]);
+      setCursorPos(cmdHistory[newIdx].length);
       return;
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (historyIdx <= 0) { setHistoryIdx(-1); setInputValue(savedInput.current); return; }
+      if (historyIdx <= 0) { setHistoryIdx(-1); setInputValue(savedInput.current); setCursorPos(savedInput.current.length); return; }
       const newIdx = historyIdx - 1;
       setHistoryIdx(newIdx);
       setInputValue(cmdHistory[newIdx]);
+      setCursorPos(cmdHistory[newIdx].length);
       return;
     }
     if (e.key === "Tab") {
@@ -496,8 +571,11 @@ export function Terminal({
       const completions = getCompletions(inputValue);
       if (completions.length === 1) {
         const parts = inputValue.split(/\s+/);
-        if (parts.length <= 1) setInputValue(completions[0] + " ");
-        else { parts[parts.length - 1] = completions[0]; setInputValue(parts.join(" ") + (completions[0].endsWith("/") ? "" : " ")); }
+        let next: string;
+        if (parts.length <= 1) next = completions[0] + " ";
+        else { parts[parts.length - 1] = completions[0]; next = parts.join(" ") + (completions[0].endsWith("/") ? "" : " "); }
+        setInputValue(next);
+        setCursorPos(next.length);
       } else if (completions.length > 1) {
         setHistory((prev) => [...prev, { prompt: currentPrompt, command: inputValue, output: completions.join("  ") }]);
       }
@@ -653,7 +731,7 @@ export function Terminal({
               <span style={{ color: theme.termText }}>
                 {autoPhase === "typing-cmd" ? cmdTyper.displayed : autoCommand}
               </span>
-              {autoPhase === "typing-cmd" && <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse" style={{ backgroundColor: theme.termText }} />}
+              {autoPhase === "typing-cmd" && <span className="inline-block min-w-[7px] h-[14px] align-middle animate-cursor font-mono text-[13px] leading-[14px]" style={{ backgroundColor: theme.termText, color: theme.termBg }}>{" "}</span>}
             </div>
             {autoPhase === "typing-output" && (
               <div className="mt-1">{renderLine(outputTyper.displayed)}</div>
@@ -673,15 +751,25 @@ export function Terminal({
           </div>
         )}
 
-        {/* Inline prompt + cursor (desktop only when borderless) */}
+        {/* Inline prompt + cursor (desktop only when not borderless) */}
         {!isAutoTyping && !borderless && (
           <div>
             <span className={chatMode ? "text-blue-400 font-medium" : "text-green-500 font-medium"}>{currentPrompt}</span>
-            <span style={{ color: theme.termText }}>{inputValue}</span>
             {isStreaming ? (
-              <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse ml-0.5" style={{ backgroundColor: "#60a5fa" }} />
+              <>
+                <span style={{ color: theme.termText }}>{inputValue}</span>
+                <span className="inline-block min-w-[7px] h-[14px] align-middle animate-cursor ml-0.5 font-mono text-[13px] leading-[14px]" style={{ backgroundColor: "#60a5fa", color: theme.termBg }}>{" "}</span>
+              </>
             ) : (
-              <span className="inline-block w-[7px] h-[14px] align-middle animate-pulse" style={{ backgroundColor: theme.termText }} />
+              <>
+                <span style={{ color: theme.termText }}>{inputValue.slice(0, cursorPos)}</span>
+                <span
+                  key={`${cursorPos}-${inputValue.length}`}
+                  className="inline-block min-w-[7px] h-[14px] align-middle animate-cursor font-mono text-[13px] leading-[14px]"
+                  style={{ backgroundColor: theme.termText, color: theme.termBg }}
+                >{inputValue[cursorPos] ?? " "}</span>
+                <span style={{ color: theme.termText }}>{inputValue.slice(cursorPos + 1)}</span>
+              </>
             )}
           </div>
         )}
@@ -698,8 +786,9 @@ export function Terminal({
             ref={inputRef}
             type="text"
             value={inputValue}
-            onChange={(e) => { if (!isAutoTyping && !isStreaming) setInputValue(e.target.value); }}
+            onChange={(e) => { if (!isAutoTyping) { setInputValue(e.target.value); syncCursor(); } }}
             onKeyDown={handleKeyDown}
+            onSelect={syncCursor}
             enterKeyHint="go"
             autoFocus
             autoCapitalize="off"
@@ -727,8 +816,9 @@ export function Terminal({
           ref={inputRef}
           type="text"
           value={inputValue}
-          onChange={(e) => { if (!isAutoTyping && !isStreaming) setInputValue(e.target.value); }}
+          onChange={(e) => { if (!isAutoTyping) { setInputValue(e.target.value); syncCursor(); } }}
           onKeyDown={handleKeyDown}
+          onSelect={syncCursor}
           className="sr-only"
           autoFocus
           aria-label="Terminal input"

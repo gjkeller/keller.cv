@@ -48,8 +48,33 @@ body {
   animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.animate-cursor {
+  animation: cursor-blink 1s step-end infinite;
+}
+
 /* Remove Tailwind Typography backtick decorations on inline code */
 .prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::before,
 .prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::after {
   content: none;
+}
+
+/* Thin scrollbar for sidebar TOC */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156,163,175,0.3) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(156,163,175,0.3);
+  border-radius: 2px;
 }

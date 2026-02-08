@@ -87,7 +87,7 @@ function getContext(): string {
 
 /* ── System prompt ── */
 
-export function getSystemPrompt(timezone?: string, location?: { city?: string; region?: string }): string {
+export function getSystemPrompt(timezone?: string): string {
   const personality = readAgentFile("system-prompt.md");
   const tz = timezone || "America/Chicago";
   const now = new Date().toLocaleString("en-US", {
@@ -101,12 +101,9 @@ export function getSystemPrompt(timezone?: string, location?: { city?: string; r
     timeZoneName: "short",
   });
 
-  const locationParts = [location?.city, location?.region].filter(Boolean);
-  const locationStr = locationParts.length ? `\nVisitor location: ${locationParts.join(", ")}` : "";
-
   return `${personality}
 
-Current date/time: ${now} (${tz})${locationStr}
+Current date/time: ${now} (${tz})
 
 <context>
 ${getContext()}

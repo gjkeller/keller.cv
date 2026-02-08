@@ -17,9 +17,6 @@ export async function POST(req: Request) {
     req.headers.get("x-real-ip") ??
     "unknown";
 
-  const city = req.headers.get("x-vercel-ip-city") ?? undefined;
-  const region = req.headers.get("x-vercel-ip-country-region") ?? undefined;
-
   const { allowed, remaining } = checkRateLimit(ip);
   if (!allowed) {
     return new Response(
@@ -56,7 +53,6 @@ export async function POST(req: Request) {
       model: google("gemini-2.0-flash"),
       system: getSystemPrompt(
         typeof timezone === "string" ? timezone : undefined,
-        (city || region) ? { city, region } : undefined,
       ),
       messages: trimmed,
       tools: getAgentTools(ip),

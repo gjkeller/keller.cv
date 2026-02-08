@@ -240,7 +240,7 @@ export function Terminal({
   const MSG_CHAR_LIMIT = 1000;
 
   /* ── Agent chat ── */
-  const sendChatMessage = useCallback(async (userMessage: string) => {
+  const sendChatMessage = useCallback(async (userMessage: string, freshSession = false) => {
     // Client-side truncation with notice
     let msg = userMessage;
     let truncNotice = "";
@@ -249,7 +249,8 @@ export function Terminal({
       truncNotice = `(message trimmed to ${MSG_CHAR_LIMIT} characters)\n`;
     }
 
-    const nextMessages = [...chatMessages, { role: "user" as const, content: msg }];
+    const base = freshSession ? [] : chatMessages;
+    const nextMessages = [...base, { role: "user" as const, content: msg }];
     setChatMessages(nextMessages);
 
     const prompt = "user> ";
@@ -450,9 +451,7 @@ export function Terminal({
         setChatMode(true);
         setChatMessages([]);
         if (arg) {
-          // Enter chat mode and fire the first message
-          sendChatMessage(arg);
-          return "__AGENT_INLINE__";
+          return "__AGENT_INLINE__:" + arg;
         }
         // Enter chat mode with a streamed greeting
         sendGreeting();
@@ -490,9 +489,12 @@ export function Terminal({
 
     const output = runCommand(cmd);
     if (output === "__CLEAR__") { setHistory([]); return; }
-    if (output === "__AGENT_INLINE__") {
-      // Show the command + a hint, then let sendChatMessage handle the rest
+    if (output.startsWith("__AGENT_INLINE__:")) {
+      const inlineMsg = output.slice("__AGENT_INLINE__:".length);
+      // Show the original command with the shell prompt and a hint
       setHistory((prev) => [...prev, { prompt: currentPrompt, command: cmd, output: "Agent mode enabled — just type to keep chatting. 'exit' to leave." }]);
+      // Now fire the chat message (fresh session since we just entered agent mode)
+      sendChatMessage(inlineMsg, true);
       return;
     }
     if (output === "__AGENT_GREET__") {

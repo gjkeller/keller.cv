@@ -834,7 +834,7 @@ export function Terminal({
                   key={`${cursorPos}-${inputValue.length}`}
                   className="animate-cursor"
                   style={{ '--cursor-bg': theme.termText, '--cursor-fg': theme.termBg, '--cursor-text': theme.termText } as React.CSSProperties}
-                >{inputValue[cursorPos] ?? '\u00A0'}</span>
+                >{(inputValue[cursorPos] == null || inputValue[cursorPos] === ' ') ? '\u00A0' : inputValue[cursorPos]}</span>
                 <span style={{ color: theme.termText }}>{inputValue.slice(cursorPos + 1)}</span>
               </>
             )}

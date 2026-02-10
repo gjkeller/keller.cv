@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import type { Theme } from "@/lib/themes";
 import { useTheme } from "@/lib/theme-context";
+import { getCalApi } from "@calcom/embed-react";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
 import { Terminal } from "./terminal";
 import { renderMarkdown, type MdStyles } from "@/lib/render-md";
@@ -47,6 +48,33 @@ function ghostCardStyle(theme: Theme) {
 }
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
+
+function toCalPath(calLink: string): string {
+  const trimmed = calLink.trim();
+  if (!trimmed) return "";
+  if (!trimmed.includes("://")) {
+    return trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname.endsWith("cal.com")) {
+      const path = url.pathname.replace(/^\/+/, "").replace(/\/+$/, "");
+      return `${path}${url.search}`;
+    }
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
+function withCalDuration(calPath: string, minutes: number): string {
+  const [path, query = ""] = calPath.split("?");
+  const params = new URLSearchParams(query);
+  params.set("duration", String(minutes));
+  const serialized = params.toString();
+  return serialized ? `${path}?${serialized}` : path;
+}
 
 /* ── Main layout ── */
 export function InteractiveLayout({
@@ -113,6 +141,29 @@ export function InteractiveLayout({
 
   // Shared theme from context (persisted + system-aware)
   const { theme, setThemeMode } = useTheme();
+  const calTheme = theme.isDark ? "dark" : "light";
+  const calBrandColor = theme.isDark ? "#CBD5E1" : "#111827";
+
+  // Keep Cal embed UI in sync with the site's auto-resolved theme.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function configureNamespace(namespace: string) {
+      const cal = await getCalApi({ namespace });
+      if (cancelled) return;
+      cal("ui", {
+        hideEventTypeDetails: false,
+        layout: "week_view",
+        theme: calTheme,
+        styles: { branding: { brandColor: calBrandColor } },
+      });
+    }
+
+    void Promise.all([configureNamespace("15m"), configureNamespace("30m")]);
+    return () => {
+      cancelled = true;
+    };
+  }, [calBrandColor, calTheme]);
 
   // Build blog terminal entries from posts
   const allFiles = useMemo(() => {
@@ -187,6 +238,8 @@ export function InteractiveLayout({
   }), [theme]);
 
   const cardStyle = ghostCardStyle(theme);
+  const calPath15 = useMemo(() => withCalDuration(toCalPath(calLink15), 15), [calLink15]);
+  const calPath30 = useMemo(() => withCalDuration(toCalPath(calLink30), 30), [calLink30]);
 
   /* ── Fluent-style glossy hover (event delegation) ── */
   const mainRef = useRef<HTMLElement>(null);
@@ -267,20 +320,34 @@ export function InteractiveLayout({
 
             {/* Call buttons */}
             <div className="grid grid-cols-2 gap-3 mt-6">
-              <a href={calLink15} target="_blank" rel="noopener noreferrer" className={`${callCardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
+              <button
+                type="button"
+                data-cal-namespace="15m"
+                data-cal-link={calPath15}
+                data-cal-config={JSON.stringify({ layout: "week_view", useSlotsViewOnSmallScreen: true, duration: 15 })}
+                className={`${callCardClass} ghost-card flex items-center gap-3 py-3`}
+                style={cardStyle}
+              >
                 <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
                 <div>
                   <span className="font-medium text-[14px]" style={{ color: theme.text }}>Quick call</span>
                   <span className="text-xs block" style={{ color: theme.textMuted }}>15 min</span>
                 </div>
-              </a>
-              <a href={calLink30} target="_blank" rel="noopener noreferrer" className={`${callCardClass} ghost-card flex items-center gap-3 py-3`} style={cardStyle}>
+              </button>
+              <button
+                type="button"
+                data-cal-namespace="30m"
+                data-cal-link={calPath30}
+                data-cal-config={JSON.stringify({ layout: "week_view", useSlotsViewOnSmallScreen: true, duration: 30 })}
+                className={`${callCardClass} ghost-card flex items-center gap-3 py-3`}
+                style={cardStyle}
+              >
                 <svg className="w-4 h-4 shrink-0" style={{ color: theme.textMuted }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 <div>
                   <span className="font-medium text-[14px]" style={{ color: theme.text }}>Deep dive</span>
                   <span className="text-xs block" style={{ color: theme.textMuted }}>30 min</span>
                 </div>
-              </a>
+              </button>
             </div>
 
             {/* Terminal link — desktop: collapses when terminal open */}

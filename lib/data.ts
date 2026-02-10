@@ -22,6 +22,6 @@ export const siteData: SiteData = {
     { label: "X", url: "https://twitter.com/gabrieljkeller" },
     { label: "Devpost", url: "https://devpost.com/gjkeller" },
   ],
-  calLink15: "https://calendar.notion.so/meet/gjkeller/15m",
-  calLink30: "https://calendar.notion.so/meet/gjkeller/30m",
+  calLink15: "gjkeller/call",
+  calLink30: "gjkeller/call",
 };

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useTheme } from "@/lib/theme-context";
 import { usePathname } from "next/navigation";
-import { siteData } from "@/lib/data";
 
 /** Shared chrome for all blog pages — themed via context */
 export function BlogShell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
@@ -70,13 +69,6 @@ export function BlogShell({ children, wide }: { children: React.ReactNode; wide?
   const renderSidebar = () => (
     <aside className="hidden lg:block fixed left-8 top-8 z-20 w-56">
       <div className="pl-3">
-        <Link
-          href="/"
-          className="block font-semibold uppercase text-[11px] tracking-[0.2em] mb-4"
-          style={{ color: theme.text }}
-        >
-          {siteData.name}
-        </Link>
         <nav className="space-y-2 mb-7" aria-label="Blog sidebar links">
           {navLinks.map((link) => (
             <Link

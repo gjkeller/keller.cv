@@ -114,24 +114,14 @@ export function BlogPostClient({
         )}
 
         {/* Article Header */}
-        <header className="mb-9 mx-auto max-w-[22.5rem] text-center">
+        <header className="mb-4 mx-auto max-w-[22.5rem] text-center">
           <h1
-            className="text-[1.4rem] sm:text-[1.85rem] font-semibold leading-tight tracking-tight mb-5"
+            className="text-[1.4rem] sm:text-[1.85rem] font-semibold leading-tight tracking-tight mb-2.5"
             style={{ color: theme.text }}
           >
             {post.title}
           </h1>
-
-          {post.description && (
-            <p
-              className="text-lg leading-relaxed"
-              style={{ color: theme.textDim }}
-            >
-              {post.description}
-            </p>
-          )}
-
-          <div className="text-sm mt-4" style={{ color: theme.textMuted }}>
+          <div className="text-sm" style={{ color: theme.textMuted }}>
             <time dateTime={post.date}>{formattedDate}</time>
           </div>
         </header>

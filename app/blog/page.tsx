@@ -37,9 +37,6 @@ export default function BlogPage() {
         >
           Gabe&apos;s Blog
         </h1>
-        <p className="text-xl" style={{ color: "var(--theme-text-dim)" }}>
-          Thoughts on agentic engineering.
-        </p>
       </div>
 
       {/* Blog Posts */}
@@ -84,27 +81,18 @@ export default function BlogPage() {
                         {post.title}
                       </h2>
 
-                      {post.description && (
-                        <p
-                          className="mt-1.5 text-sm leading-relaxed line-clamp-2"
-                          style={{ color: "var(--theme-text-dim)" }}
-                        >
-                          {post.description}
-                        </p>
-                      )}
-
-                      <div className="mt-2 text-xs" style={{ color: "var(--theme-text-muted)" }}>
+                      <div className="mt-1.5 text-xs" style={{ color: "var(--theme-text-muted)" }}>
                         <time dateTime={post.date}>{formattedDate}</time>
                       </div>
                     </div>
 
                     {post.image && (
-                      <div className="w-28 sm:w-36 shrink-0 rounded-md overflow-hidden">
+                      <div className="w-24 sm:w-28 shrink-0 rounded-md overflow-hidden">
                         <Image
                           src={post.image}
                           alt={post.title}
-                          width={360}
-                          height={220}
+                          width={1470}
+                          height={1253}
                           className="w-full h-auto group-hover:scale-[1.03] transition-transform duration-300"
                         />
                       </div>

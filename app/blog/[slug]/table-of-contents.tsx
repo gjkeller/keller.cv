@@ -17,7 +17,7 @@ export function InlineTOC({ headings, theme }: { headings: TocHeading[]; theme: 
   const right = headings.slice(mid);
 
   return (
-    <div className="my-12">
+    <div className="mt-6 mb-12">
       <hr style={{ borderColor: theme.border }} />
       <button
         onClick={() => setOpen(!open)}

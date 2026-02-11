@@ -2,30 +2,31 @@
 
 ## Character
 
-The mascot is a small teddy bear in a **plain navy blue crewneck sweater** (no logos, no emblems). Warm tan fur, round ears, black bead eyes, small brown nose. Proportions are chibi/cartoon — big head relative to body, stubby paws.
+The mascot is a small teddy bear inspired by classic Paddington-style storytelling art: warm tan fur, round ears, bead-like eyes, and a small brown nose. The bear now wears a **red floppy hat** and **blue duffle coat** as the default outfit for OG scenes.
 
 The bear is the recurring protagonist across all blog OG images. It acts out scenes that metaphorically represent each post's topic — similar to how Ben Borger's blog character appears in different situations per post.
 
 ## Art Style
 
-**Medium**: Ink-and-watercolor editorial cartoon. Generated via DALL-E 3 (`1792x1024`, `hd` quality).
+**Medium**: Storybook watercolor-and-ink illustration inspired by classic Paddington Bear book art. Generated via image model with a horizontal OG composition.
 
-**Lines**: Thick black ink outlines, slightly loose/hand-drawn feel. Not perfectly clean vector art, but not as wobbly as actual hand-drawn — somewhere between digital illustration and traditional ink.
+**Lines**: Gentle hand-inked outlines with slight wobble and sketch warmth. Keep contours readable, but avoid hard vector-perfect edges.
 
-**Fills**: Muted watercolor washes. Colors should bleed *slightly* past the outlines in places to give an organic, imperfect feel. Avoid flat digital fills.
+**Fills**: Soft watercolor washes with visible brush texture and subtle paper grain. Let color pooling and bleed happen naturally in small areas.
 
 **Background**: Clean white or very faint off-white. No gradients, no patterns, no text. The illustration stands alone.
 
-**Composition**: Single centered scene. The bear is always the focal point. Props and environmental elements support the narrative but don't overwhelm.
+**Composition**: Single scene on a wide canvas suitable for OG cards (target ratio ~`1.91:1`). Keep the bear as the focal point with surrounding props that support the action.
 
-**Energy/Motion**: Use curved "motion lines" and small marks (like `~ ~` or `( (` shapes) around moving elements to convey energy, chaos, speed, or nervousness. This is a signature element borrowed from editorial cartooning.
+**Energy/Motion**: Use subtle curved motion lines around fast movement (typing paws, vibrating keyboard, steam curls from coffee) to imply frantic coding energy.
 
 ## Color Palette
 
 | Element | Color |
 |---------|-------|
 | Bear fur | Warm tan / light brown |
-| Sweater | Navy blue (plain, no logo) |
+| Hat | Warm red |
+| Coat | Blue duffle coat |
 | Ink outlines | Black, thick |
 | Accent props | Soft blues, warm oranges, muted reds |
 | Background | White (#FFFFFF or #FAFAFA) |
@@ -36,24 +37,31 @@ The bear is the recurring protagonist across all blog OG images. It acts out sce
 Use this as a base when generating new OG images. Replace `[SCENE]` with the post-specific concept.
 
 ```
-Editorial cartoon illustration in ink-and-watercolor style on a clean white
-background. A small cute teddy bear wearing a plain navy blue crewneck sweater
-(no logos, no emblems, no text on the sweater) is [SCENE]. Style: thick black
-ink outlines, slightly loose hand-drawn feel, muted watercolor fills that bleed
-slightly past the lines. Colors: warm tan bear fur, navy sweater, [SCENE-SPECIFIC
-COLORS]. No text anywhere in the image. Centered composition. The feel should be
-whimsical, energetic, and charming — like a professional editorial cartoon
-illustration for a tech blog.
+Wide horizontal storybook watercolor-and-ink illustration inspired by classic
+Paddington-style art on a clean off-white paper background. A small warm tan
+teddy bear wearing a red floppy hat and blue duffle coat is [SCENE]. Keep
+gentle hand-inked outlines, soft watercolor washes with visible brush texture,
+and subtle paper grain. Add light motion lines where movement matters. No text,
+no logos, no watermark. Keep composition readable at social preview size and
+leave breathing room around the focal action.
 ```
 
-**API params**: `model: dall-e-3`, `size: 1792x1024`, `quality: hd`
+## Inspiration + Change Log
+
+### 2026-02-10 style shift
+- **Why**: Move from "editorial cartoon" toward a more recognizable storybook bear aesthetic that feels warmer and more personal.
+- **Reference image**: `docs/images/paddington-reference.png`
+- **Notes**: Use the reference for palette + wardrobe cues only. Keep all generated scenes original.
+
+![Paddington style reference used for OG direction](./images/paddington-reference.png)
 
 ## Existing Images
 
 ### "How I built keller.cv with Cursor and Claude in one afternoon"
 - **File**: `public/images/blog/building-keller-cv/og-cover.png`
-- **Scene**: Bear hunched at a tiny desk frantically typing on a laptop. UI mockup cards and browser windows scattered in the air like tossed playing cards. Spilled coffee cup. Motion lines radiating outward. Bear has a focused, slightly manic expression.
-- **Concept reasoning**: Represents the rapid-fire prototyping process — 9 prototypes, 60 commits, one afternoon. The flying UI cards = discarded iterations. The energy = speed of AI-assisted development.
+- **Backup of regenerated version**: `public/images/blog/building-keller-cv/og-cover-paddington-coding.png`
+- **Scene**: Bear in red hat + blue coat, seated at a desk, frantically coding at a computer with a steaming coffee cup nearby.
+- **Concept reasoning**: Represents the rapid, caffeinated shipping pace of the build session while aligning with the new storybook-inspired character system.
 
 ## Concept Guidelines
 
@@ -67,11 +75,6 @@ Each blog post's OG image should:
 
 ## Inspiration
 
-Style is inspired by [Ben Borger's blog](https://ben.page/) cover illustrations:
-- Hand-drawn ink + watercolor aesthetic
-- Single subject on white background
-- Character acting out a metaphor for the blog topic
-- Motion lines for energy
-- No text in the image
-
-Our version is slightly more polished/clean than Ben's fully hand-drawn look, but maintains the warmth and charm of the watercolor medium.
+Style references:
+- Attached bear illustration source: `docs/images/paddington-reference.png`
+- Ben Borger's blog covers: [ben.page](https://ben.page/)

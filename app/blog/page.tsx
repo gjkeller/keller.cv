@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Calendar, Clock } from "lucide-react";
 import { getBlogPosts } from "@/lib/mdx";
 import { BlogShell } from "./blog-shell";
 
 export const metadata: Metadata = {
-  title: "Blog",
+  title: "Gabe's Blog",
   description:
     "Thoughts on software engineering, AI, and building with agents — by Gabriel Keller.",
   openGraph: {
-    title: "Blog — Gabriel Keller",
+    title: "Gabe's Blog — Gabriel Keller",
     description:
       "Thoughts on software engineering, AI, and building with agents.",
     url: "https://keller.cv/blog",
@@ -18,7 +17,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Blog — Gabriel Keller",
+    title: "Gabe's Blog — Gabriel Keller",
     description:
       "Thoughts on software engineering, AI, and building with agents.",
   },
@@ -36,15 +35,15 @@ export default function BlogPage() {
           className="text-4xl font-bold mb-4"
           style={{ color: "var(--theme-text)" }}
         >
-          Blog
+          Gabe&apos;s Blog
         </h1>
         <p className="text-xl" style={{ color: "var(--theme-text-dim)" }}>
-          Thoughts on software engineering, technology, and life.
+          Thoughts on agentic engineering.
         </p>
       </div>
 
       {/* Blog Posts */}
-      <div className="space-y-8">
+      <div className="space-y-4">
         {posts.length === 0 ? (
           <div className="text-center py-12">
             <p
@@ -67,68 +66,51 @@ export default function BlogPage() {
             return (
               <article
                 key={post.slug}
-                className="border-b pb-8 last:border-b-0"
-                style={{ borderColor: "var(--theme-border)" }}
+                className="py-4 border-b last:border-b-0"
+                style={{
+                  borderColor: "var(--theme-border)",
+                }}
               >
-                {post.image && (
-                  <Link href={`/blog/${post.slug}`} className="block mb-4 -mx-2 sm:mx-0 rounded-lg overflow-hidden">
-                    <Image
-                      src={post.image}
-                      alt={post.title}
-                      width={1200}
-                      height={630}
-                      className="w-full h-auto hover:scale-[1.02] transition-transform duration-300"
-                    />
-                  </Link>
-                )}
+                <Link
+                  href={`/blog/${post.slug}`}
+                  className="group block -mx-1 px-1 py-1 rounded-md transition-opacity hover:opacity-85"
+                >
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h2
+                        className="text-lg sm:text-xl font-semibold transition-colors"
+                        style={{ color: "var(--theme-text)" }}
+                      >
+                        {post.title}
+                      </h2>
 
-                <div className="mb-4">
-                  <Link href={`/blog/${post.slug}`} className="group">
-                    <h2
-                      className="text-2xl font-semibold group-hover:text-blue-500 transition-colors mb-2"
-                      style={{ color: "var(--theme-text)" }}
-                    >
-                      {post.title}
-                    </h2>
-                  </Link>
+                      {post.description && (
+                        <p
+                          className="mt-1.5 text-sm leading-relaxed line-clamp-2"
+                          style={{ color: "var(--theme-text-dim)" }}
+                        >
+                          {post.description}
+                        </p>
+                      )}
 
-                  <div
-                    className="flex items-center gap-4 text-sm mb-3"
-                    style={{ color: "var(--theme-text-muted)" }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      <time dateTime={post.date}>{formattedDate}</time>
+                      <div className="mt-2 text-xs" style={{ color: "var(--theme-text-muted)" }}>
+                        <time dateTime={post.date}>{formattedDate}</time>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      <span>{post.readingTime.text}</span>
-                    </div>
-
-                    {post.author && (
-                      <div>
-                        <span>by {post.author}</span>
+                    {post.image && (
+                      <div className="w-28 sm:w-36 shrink-0 rounded-md overflow-hidden">
+                        <Image
+                          src={post.image}
+                          alt={post.title}
+                          width={360}
+                          height={220}
+                          className="w-full h-auto group-hover:scale-[1.03] transition-transform duration-300"
+                        />
                       </div>
                     )}
                   </div>
-
-                  {post.description && (
-                    <p
-                      className="mb-4 leading-relaxed"
-                      style={{ color: "var(--theme-text-dim)" }}
-                    >
-                      {post.description}
-                    </p>
-                  )}
-
-                  <Link
-                    href={`/blog/${post.slug}`}
-                    className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
-                  >
-                    Read more &rarr;
-                  </Link>
-                </div>
+                </Link>
               </article>
             );
           })

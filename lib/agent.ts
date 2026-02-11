@@ -89,6 +89,7 @@ function getContext(): string {
 
 export function getSystemPrompt(timezone?: string): string {
   const personality = readAgentFile("system-prompt.md");
+  const ycAddon = readAgentFile("yc-addon.md");
   const tz = timezone || "America/Chicago";
   const now = new Date().toLocaleString("en-US", {
     timeZone: tz,
@@ -101,7 +102,15 @@ export function getSystemPrompt(timezone?: string): string {
     timeZoneName: "short",
   });
 
-  return `${personality}
+  const instructionBlock = ycAddon
+    ? `${personality}
+
+<yc_addon>
+${ycAddon}
+</yc_addon>`
+    : personality;
+
+  return `${instructionBlock}
 
 Current date/time: ${now} (${tz})
 

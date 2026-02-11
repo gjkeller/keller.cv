@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { WorkItem, HackathonWin } from "@/lib/content";
-import type { Theme } from "@/lib/themes";
+import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
 import { useTheme } from "@/lib/theme-context";
 import { getCalApi } from "@calcom/embed-react";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
@@ -44,6 +44,9 @@ function ghostCardStyle(theme: Theme) {
     ["--gloss-color" as string]: theme.isDark
       ? "rgba(255,255,255,0.06)"
       : "rgba(255,255,255,0.45)",
+    ["--press-overlay" as string]: theme.isDark
+      ? "rgba(0,0,0,0.14)"
+      : "rgba(0,0,0,0.05)",
   };
 }
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
@@ -74,6 +77,107 @@ function withCalDuration(calPath: string, minutes: number): string {
   params.set("duration", String(minutes));
   const serialized = params.toString();
   return serialized ? `${path}?${serialized}` : path;
+}
+
+function buildCalCssVars(theme: Theme) {
+  const isDark = theme.isDark;
+  const calBg = isDark ? "#111113" : theme.bg;
+  const calBgMuted = isDark ? "#16161a" : theme.termBarBg;
+  const calBgSubtle = isDark ? "#1f1f23" : theme.cardHoverBg;
+  const calBgEmphasis = isDark ? "#2a2a30" : theme.cardHoverBg;
+  const calText = isDark ? "#d4d4d8" : theme.text;
+  const calTextDim = isDark ? "#a1a1aa" : theme.textDim;
+  const calTextMuted = isDark ? "#71717a" : theme.textMuted;
+  const calBorder = isDark ? "#27272a" : theme.border;
+  const calBrand = isDark ? "#e4e4e7" : theme.text;
+
+  const vars = {
+    "--cal-bg": calBg,
+    "--cal-bg-muted": calBgMuted,
+    "--cal-bg-subtle": calBgSubtle,
+    "--cal-bg-emphasis": calBgEmphasis,
+    "--cal-text": calTextDim,
+    "--cal-text-emphasis": calText,
+    "--cal-text-subtle": calTextDim,
+    "--cal-text-muted": calTextMuted,
+    "--cal-border": calBorder,
+    "--cal-border-subtle": calBorder,
+    "--cal-brand": calBrand,
+    "--cal-brand-color": calBrand,
+    "--cal-brand-text": isDark ? "#111113" : "#FFFFFF",
+  } as const;
+
+  // Apply same token set to both modes so Cal always matches the active TUI theme.
+  return { light: vars, dark: vars };
+}
+
+function removeCalModalInstances(): void {
+  if (typeof document === "undefined") return;
+  document.querySelectorAll("cal-modal-box").forEach((el) => el.remove());
+}
+
+function constrainCalModalWidth(maxWidthPx = 980): void {
+  if (typeof document === "undefined") return;
+  const modals = document.querySelectorAll("cal-modal-box");
+  modals.forEach((modalEl) => {
+    const shadow = (modalEl as HTMLElement).shadowRoot;
+    if (!shadow) return;
+    if (shadow.getElementById("keller-cal-modal-width")) return;
+
+    const style = document.createElement("style");
+    style.id = "keller-cal-modal-width";
+    style.textContent = `
+      .modal-box {
+        width: min(${maxWidthPx}px, calc(100vw - 2rem)) !important;
+        left: 50% !important;
+        top: calc(50% + 0.5rem) !important;
+        transform: translate(-50%, -50%) !important;
+      }
+
+      @media (max-width: 768px) {
+        .modal-box {
+          width: calc(100vw - 1rem) !important;
+        }
+      }
+    `;
+    shadow.appendChild(style);
+  });
+}
+
+function applyCalUiConfig(
+  cal: Awaited<ReturnType<typeof getCalApi>>,
+  theme: Theme,
+): void {
+  const calTheme = theme.isDark ? "dark" : "light";
+  const calCssVars = buildCalCssVars(theme);
+  const calBg = theme.isDark ? "#111113" : theme.bg;
+  const calSurface = theme.isDark ? "#1f1f23" : theme.cardHoverBg;
+  const calText = theme.isDark ? "#d4d4d8" : theme.text;
+  const calTextMuted = theme.isDark ? "#71717a" : theme.textMuted;
+  cal("ui", {
+    hideEventTypeDetails: false,
+    layout: "month_view",
+    theme: calTheme,
+    colorScheme: calTheme,
+    styles: {
+      branding: { brandColor: calText },
+      body: { background: calBg },
+      eventTypeListItem: { background: calSurface, color: calText },
+      enabledDateButton: { background: calSurface, color: calText },
+      disabledDateButton: { background: calBg, color: calTextMuted },
+      availabilityDatePicker: { background: calBg, color: calText },
+    },
+    cssVarsPerTheme: calCssVars,
+  });
+}
+
+async function applyCalUiForTheme(theme: Theme): Promise<void> {
+  async function configureNamespace(namespace: string) {
+    const cal = await getCalApi({ namespace });
+    applyCalUiConfig(cal, theme);
+  }
+
+  await Promise.all([configureNamespace("15m"), configureNamespace("30m")]);
 }
 
 /* ── Main layout ── */
@@ -141,29 +245,16 @@ export function InteractiveLayout({
 
   // Shared theme from context (persisted + system-aware)
   const { theme, setThemeMode } = useTheme();
-  const calTheme = theme.isDark ? "dark" : "light";
-  const calBrandColor = theme.isDark ? "#CBD5E1" : "#111827";
 
   // Keep Cal embed UI in sync with the site's auto-resolved theme.
   useEffect(() => {
-    let cancelled = false;
-
-    async function configureNamespace(namespace: string) {
-      const cal = await getCalApi({ namespace });
-      if (cancelled) return;
-      cal("ui", {
-        hideEventTypeDetails: false,
-        layout: "week_view",
-        theme: calTheme,
-        styles: { branding: { brandColor: calBrandColor } },
-      });
+    async function syncCalUi() {
+      removeCalModalInstances();
+      await applyCalUiForTheme(theme);
     }
 
-    void Promise.all([configureNamespace("15m"), configureNamespace("30m")]);
-    return () => {
-      cancelled = true;
-    };
-  }, [calBrandColor, calTheme]);
+    void syncCalUi();
+  }, [theme]);
 
   // Build blog terminal entries from posts
   const allFiles = useMemo(() => {
@@ -184,7 +275,13 @@ export function InteractiveLayout({
 
   const handleThemeChange = useCallback((themeName: string) => {
     setThemeMode(themeName);
-  }, [setThemeMode]);
+    const nextTheme =
+      themeName === "auto"
+        ? resolveAutoTheme(window.matchMedia("(prefers-color-scheme: dark)").matches)
+        : THEMES.find((t) => t.name === themeName) || theme;
+    removeCalModalInstances();
+    void applyCalUiForTheme(nextTheme);
+  }, [setThemeMode, theme]);
 
   const handleClick = useCallback((e: React.MouseEvent, type: string, id: string, url?: string) => {
     // Cmd-click (or Ctrl-click on non-Mac) opens the URL in a new tab
@@ -240,6 +337,29 @@ export function InteractiveLayout({
   const cardStyle = ghostCardStyle(theme);
   const calPath15 = useMemo(() => withCalDuration(toCalPath(calLink15), 15), [calLink15]);
   const calPath30 = useMemo(() => withCalDuration(toCalPath(calLink30), 30), [calLink30]);
+  const calButtonTheme = theme.isDark ? "dark" : "light";
+  const openCalModal = useCallback(async (namespace: "15m" | "30m", calLink: string, duration: 15 | 30) => {
+    removeCalModalInstances();
+    // Force a fresh namespace per click so repeated opens of the same CTA
+    // cannot reuse stale modal/theme state from previous runs.
+    const modalNamespace = `${namespace}-${Date.now()}`;
+    const cal = await getCalApi({ namespace: modalNamespace });
+    applyCalUiConfig(cal, theme);
+    cal("modal", {
+      calLink,
+      config: {
+        layout: "month_view",
+        useSlotsViewOnSmallScreen: "true",
+        duration: String(duration),
+        theme: calButtonTheme,
+        "ui.color-scheme": calButtonTheme,
+      },
+    });
+    requestAnimationFrame(() => {
+      constrainCalModalWidth(980);
+      setTimeout(() => constrainCalModalWidth(980), 120);
+    });
+  }, [calButtonTheme, theme]);
 
   /* ── Fluent-style glossy hover (event delegation) ── */
   const mainRef = useRef<HTMLElement>(null);
@@ -272,6 +392,7 @@ export function InteractiveLayout({
       <style>{`
         .ghost-card:hover { background-color: var(--hover-bg); border-color: var(--hover-border); box-shadow: var(--hover-shadow); }
         .ghost-card:active { box-shadow: var(--active-shadow); }
+        .ghost-card:active::after { opacity: 1; }
         .ghost-card { position: relative; overflow: hidden; }
         .ghost-card::before {
           content: '';
@@ -287,6 +408,17 @@ export function InteractiveLayout({
           transition: opacity 0.3s ease;
           pointer-events: none;
           z-index: 1;
+        }
+        .ghost-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: var(--press-overlay, rgba(0,0,0,0.08));
+          opacity: 0;
+          transition: opacity 120ms ease;
+          pointer-events: none;
+          z-index: 2;
         }
       `}</style>
 
@@ -319,12 +451,13 @@ export function InteractiveLayout({
             <p className="text-[15px] mt-6 leading-relaxed" style={{ color: theme.textDim }}>{bio}</p>
 
             {/* Call buttons */}
-            <div className="grid grid-cols-2 gap-3 mt-6">
+            <p className="text-[15px] mt-6 mb-4 leading-relaxed" style={{ color: theme.textDim }}>
+              If you&apos;re into agentic engineering, let&apos;s talk:
+            </p>
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                data-cal-namespace="15m"
-                data-cal-link={calPath15}
-                data-cal-config={JSON.stringify({ layout: "week_view", useSlotsViewOnSmallScreen: true, duration: 15 })}
+                onClick={() => void openCalModal("15m", calPath15, 15)}
                 className={`${callCardClass} ghost-card flex items-center gap-3 py-3`}
                 style={cardStyle}
               >
@@ -336,9 +469,7 @@ export function InteractiveLayout({
               </button>
               <button
                 type="button"
-                data-cal-namespace="30m"
-                data-cal-link={calPath30}
-                data-cal-config={JSON.stringify({ layout: "week_view", useSlotsViewOnSmallScreen: true, duration: 30 })}
+                onClick={() => void openCalModal("30m", calPath30, 30)}
                 className={`${callCardClass} ghost-card flex items-center gap-3 py-3`}
                 style={cardStyle}
               >

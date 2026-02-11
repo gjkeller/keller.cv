@@ -8,7 +8,7 @@ export type { TocHeading };
 
 /* ── Inline TOC (collapsible, two-column, dividing lines) ── */
 export function InlineTOC({ headings, theme }: { headings: TocHeading[]; theme: Theme }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   if (headings.length === 0) return null;
 
@@ -52,10 +52,13 @@ export function InlineTOC({ headings, theme }: { headings: TocHeading[]; theme: 
                 href={`#${h.id}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  document.getElementById(h.id)?.scrollIntoView({ behavior: "smooth" });
+                  const element = document.getElementById(h.id);
+                  if (!element) return;
+                  element.scrollIntoView({ behavior: "smooth" });
+                  window.history.replaceState(null, "", `#${h.id}`);
                 }}
                 className={`block py-0.5 transition-colors hover:opacity-70 ${h.level === 3 ? "pl-4" : ""}`}
-                style={{ color: h.level === 2 ? theme.textDim : theme.textMuted }}
+                style={{ color: theme.textDim }}
               >
                 {h.text}
               </a>
@@ -68,10 +71,13 @@ export function InlineTOC({ headings, theme }: { headings: TocHeading[]; theme: 
                 href={`#${h.id}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  document.getElementById(h.id)?.scrollIntoView({ behavior: "smooth" });
+                  const element = document.getElementById(h.id);
+                  if (!element) return;
+                  element.scrollIntoView({ behavior: "smooth" });
+                  window.history.replaceState(null, "", `#${h.id}`);
                 }}
                 className={`block py-0.5 transition-colors hover:opacity-70 ${h.level === 3 ? "pl-4" : ""}`}
-                style={{ color: h.level === 2 ? theme.textDim : theme.textMuted }}
+                style={{ color: theme.textDim }}
               >
                 {h.text}
               </a>
@@ -166,7 +172,10 @@ export function TableOfContents({ headings, theme }: Props) {
                 href={`#${h.id}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  document.getElementById(h.id)?.scrollIntoView({ behavior: "smooth" });
+                  const element = document.getElementById(h.id);
+                  if (!element) return;
+                  element.scrollIntoView({ behavior: "smooth" });
+                  window.history.replaceState(null, "", `#${h.id}`);
                   setActiveId(h.id);
                 }}
                 className="block py-0.5 transition-colors duration-150 hover:opacity-80"

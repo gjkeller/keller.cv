@@ -1,7 +1,7 @@
 import type { MDXComponents } from "mdx/types";
-import Image from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
+import { ExpandableImage } from "@/components/blog/expandable-image";
 
 function slugify(text: string): string {
   return text
@@ -28,11 +28,29 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     h1: ({ children }: { children?: ReactNode }) => <h1>{children}</h1>,
     h2: ({ children }: { children?: ReactNode }) => {
       const id = slugify(getTextContent(children));
-      return <h2 id={id}>{children}</h2>;
+      return (
+        <h2 id={id} className="group scroll-mt-24">
+          <a href={`#${id}`} className="inline-flex items-center gap-2 no-underline">
+            <span>{children}</span>
+            <span className="text-sm opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true">
+              #
+            </span>
+          </a>
+        </h2>
+      );
     },
     h3: ({ children }: { children?: ReactNode }) => {
       const id = slugify(getTextContent(children));
-      return <h3 id={id}>{children}</h3>;
+      return (
+        <h3 id={id} className="group scroll-mt-24">
+          <a href={`#${id}`} className="inline-flex items-center gap-2 no-underline">
+            <span>{children}</span>
+            <span className="text-sm opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true">
+              #
+            </span>
+          </a>
+        </h3>
+      );
     },
     h4: ({ children }: { children?: ReactNode }) => <h4>{children}</h4>,
     p: ({ children }: { children?: ReactNode }) => {
@@ -118,7 +136,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
       ...props
     }: React.ImgHTMLAttributes<HTMLImageElement>) => (
       <figure style={{ margin: "2rem 0", textAlign: "center" }}>
-        <Image
+        <ExpandableImage
           src={typeof src === "string" ? src : ""}
           alt={alt || ""}
           width={
@@ -135,20 +153,10 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
                 ? parseInt(height) || 400
                 : 400
           }
-          style={{ borderRadius: "0.5rem", maxWidth: "100%", height: "auto" }}
+          className="h-auto max-w-full rounded-lg"
+          caption={alt || undefined}
+          {...props}
         />
-        {alt && (
-          <figcaption
-            style={{
-              fontSize: "0.875rem",
-              color: "#6b7280",
-              marginTop: "0.5rem",
-              fontStyle: "italic",
-            }}
-          >
-            {alt}
-          </figcaption>
-        )}
       </figure>
     ),
 

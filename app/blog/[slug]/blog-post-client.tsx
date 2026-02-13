@@ -7,6 +7,8 @@ import { InlineTOC, type TocHeading } from "./table-of-contents";
 import type { MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface BlogPost {
   title: string;
@@ -17,27 +19,32 @@ interface BlogPost {
   readingTime: { text: string };
 }
 
-type HeaderVariant = "one" | "two" | "three";
+type ThemeOption = {
+  id: "auto" | "light" | "warm" | "dark-gray" | "dark-blue" | "midnight";
+  label: "Auto" | "Light" | "Warm" | "Dark Gray" | "Dark Blue" | "Midnight";
+};
+
+const THEME_OPTIONS: ThemeOption[] = [
+  { id: "auto", label: "Auto" },
+  { id: "light", label: "Light" },
+  { id: "warm", label: "Warm" },
+  { id: "dark-gray", label: "Dark Gray" },
+  { id: "dark-blue", label: "Dark Blue" },
+  { id: "midnight", label: "Midnight" },
+];
 
 export function BlogPostClient({
   post,
   headings,
   children,
-  headerVariant = "one",
 }: {
   post: BlogPost;
   headings?: TocHeading[];
   children: React.ReactNode;
-  headerVariant?: HeaderVariant;
 }) {
-  const { theme } = useTheme();
-  const titleAnchorRef = useRef<HTMLHeadingElement>(null);
-  const allBlogsLinkRef = useRef<HTMLAnchorElement>(null);
-  const lastScrollYRef = useRef(0);
-  const [allBlogsVisible, setAllBlogsVisible] = useState(true);
-  const [showCompactTitle, setShowCompactTitle] = useState(false);
-  const [mouseNearTop, setMouseNearTop] = useState(false);
-  const [headerHovered, setHeaderHovered] = useState(false);
+  const { theme, themeMode, setThemeMode } = useTheme();
+  const [headerStuck, setHeaderStuck] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
 
   const formattedDate = new Date(post.date).toLocaleDateString("en-US", {
     year: "numeric",
@@ -47,6 +54,9 @@ export function BlogPostClient({
 
   const hasToc = headings && headings.length > 0;
 
+  const headerText = theme.text;
+  const headerMuted = theme.textMuted;
+
   const handleSkeuoMove = (event: MouseEvent<HTMLAnchorElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     event.currentTarget.style.setProperty("--sx", `${event.clientX - rect.left}px`);
@@ -54,206 +64,16 @@ export function BlogPostClient({
   };
 
   useEffect(() => {
-    const updateTitleVisibility = () => {
-      const titleEl = titleAnchorRef.current;
-      if (!titleEl) return;
-      const rect = titleEl.getBoundingClientRect();
-      setShowCompactTitle(rect.bottom < 0);
+    const updateStickyState = () => {
+      setHeaderStuck(window.scrollY > 2);
     };
 
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      const isScrollingDown = currentY > lastScrollYRef.current + 2;
-
-      if (isScrollingDown) setHeaderHovered(false);
-
-      lastScrollYRef.current = currentY;
-      updateTitleVisibility();
-    };
-
-    const handleMouseMove = (event: globalThis.MouseEvent) => {
-      setMouseNearTop(event.clientY <= 72);
-    };
-
-    lastScrollYRef.current = window.scrollY;
-    updateTitleVisibility();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("mousemove", handleMouseMove);
+    updateStickyState();
+    window.addEventListener("scroll", updateStickyState, { passive: true });
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("scroll", updateStickyState);
     };
   }, []);
-
-  useEffect(() => {
-    const el = allBlogsLinkRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setAllBlogsVisible(entry?.isIntersecting ?? false);
-      },
-      { threshold: 0.05 },
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const floatingVisible = !allBlogsVisible && (mouseNearTop || headerHovered);
-  const floatingVisibilityClass = floatingVisible
-    ? "opacity-100 pointer-events-auto"
-    : "opacity-0 pointer-events-none";
-
-  const renderFloatingHeader = () => {
-    if (headerVariant === "two") {
-      return (
-        <div
-          className={`fixed top-4 inset-x-0 z-40 px-8 sm:px-14 lg:px-20 transition-opacity duration-150 ease-out ${floatingVisibilityClass}`}
-        >
-          <div
-            className="max-w-[40rem] mx-auto w-full px-3 py-3.5 rounded-2xl border overflow-hidden isolate backdrop-blur-xl backdrop-saturate-150"
-            style={{
-              background:
-                theme.isDark
-                  ? "linear-gradient(90deg, rgba(15,23,42,0.5) 0%, rgba(30,41,59,0.44) 100%)"
-                  : "linear-gradient(90deg, rgba(255,255,255,0.42) 0%, rgba(241,245,249,0.38) 100%)",
-              borderColor: theme.isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.22)",
-              boxShadow: theme.isDark
-                ? "0 6px 14px rgba(2,6,23,0.2)"
-                : "0 6px 14px rgba(15,23,42,0.06)",
-              backdropFilter: "blur(42px) saturate(2.2)",
-              WebkitBackdropFilter: "blur(42px) saturate(2.2)",
-              transform: "translateZ(0)",
-            }}
-            onMouseEnter={() => setHeaderHovered(true)}
-            onMouseLeave={() => setHeaderHovered(false)}
-          >
-            <div className="relative flex items-center">
-              <Link
-                href="/blog"
-                className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
-                style={{ color: theme.text }}
-              >
-                All blogs
-              </Link>
-              <div
-                className={`absolute left-1/2 -translate-x-1/2 text-lg font-medium transition-opacity duration-300 text-center whitespace-nowrap ${
-                  showCompactTitle || !allBlogsVisible ? "opacity-100" : "opacity-0"
-                }`}
-                style={{ color: theme.text }}
-                aria-hidden={!(showCompactTitle || !allBlogsVisible)}
-              >
-                <Link
-                  href="/"
-                  className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
-                  style={{ color: theme.text }}
-                >
-                  Gabriel Keller
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (headerVariant === "three") {
-      return (
-        <div
-          className={`fixed top-5 inset-x-0 z-40 px-8 sm:px-14 lg:px-20 transition-opacity duration-150 ease-out ${floatingVisibilityClass}`}
-        >
-          <div
-            className="max-w-[40rem] mx-auto w-full px-3 py-3 rounded-full border overflow-hidden isolate backdrop-blur-xl backdrop-saturate-150"
-            style={{
-              backgroundColor: theme.isDark ? "rgba(15,23,42,0.48)" : "rgba(255,255,255,0.42)",
-              borderColor: theme.isDark ? "rgba(148,163,184,0.25)" : "rgba(148,163,184,0.22)",
-              boxShadow: theme.isDark
-                ? "0 6px 14px rgba(2,6,23,0.2)"
-                : "0 6px 14px rgba(15,23,42,0.06)",
-              backdropFilter: "blur(42px) saturate(2.2)",
-              WebkitBackdropFilter: "blur(42px) saturate(2.2)",
-              transform: "translateZ(0)",
-            }}
-            onMouseEnter={() => setHeaderHovered(true)}
-            onMouseLeave={() => setHeaderHovered(false)}
-          >
-            <div className="relative flex items-center">
-              <Link
-                href="/blog"
-                className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
-                style={{ color: theme.text }}
-              >
-                All blogs
-              </Link>
-              <div
-                className={`absolute left-1/2 -translate-x-1/2 px-2 sm:px-3 text-lg font-medium text-center transition-opacity duration-300 whitespace-nowrap ${
-                  showCompactTitle || !allBlogsVisible ? "opacity-100" : "opacity-0"
-                }`}
-                style={{ color: theme.text }}
-                aria-hidden={!(showCompactTitle || !allBlogsVisible)}
-              >
-                <Link
-                  href="/"
-                  className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
-                  style={{ color: theme.text }}
-                >
-                  Gabriel Keller
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        className={`fixed top-4 inset-x-0 z-40 px-8 sm:px-14 lg:px-20 transition-opacity duration-150 ease-out ${floatingVisibilityClass}`}
-      >
-        <div
-          className="max-w-[40rem] mx-auto w-full px-3 py-3.5 rounded-2xl border overflow-hidden isolate backdrop-blur-xl backdrop-saturate-150"
-          style={{
-            backgroundColor: theme.isDark ? "rgba(15,23,42,0.5)" : "rgba(255,255,255,0.42)",
-            borderColor: theme.isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.22)",
-            boxShadow: theme.isDark
-              ? "0 6px 14px rgba(2,6,23,0.2)"
-              : "0 6px 14px rgba(15,23,42,0.06)",
-            backdropFilter: "blur(42px) saturate(2.2)",
-            WebkitBackdropFilter: "blur(42px) saturate(2.2)",
-            transform: "translateZ(0)",
-          }}
-          onMouseEnter={() => setHeaderHovered(true)}
-          onMouseLeave={() => setHeaderHovered(false)}
-        >
-          <div className="relative flex items-center min-w-0">
-            <Link
-              href="/blog"
-              className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
-              style={{ color: theme.text }}
-            >
-              All blogs
-            </Link>
-            <div
-              className={`absolute left-1/2 -translate-x-1/2 text-lg font-medium text-center transition-opacity duration-300 whitespace-nowrap ${
-                showCompactTitle || !allBlogsVisible ? "opacity-100" : "opacity-0"
-              }`}
-              style={{ color: theme.text }}
-              aria-hidden={!(showCompactTitle || !allBlogsVisible)}
-            >
-              <Link
-                href="/"
-                className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
-                style={{ color: theme.text }}
-              >
-                Gabriel Keller
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <BlogShell>
@@ -313,25 +133,74 @@ export function BlogPostClient({
           filter: brightness(0.98);
         }
       `}</style>
-      {renderFloatingHeader()}
       <div className="max-w-3xl relative">
-        <div className="relative z-10 min-h-6 -mt-14 mb-14">
-          <Link
-            ref={allBlogsLinkRef}
-            href="/blog"
-            className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
-            style={{ color: theme.text }}
-          >
-            All blogs
-          </Link>
-          <div className="absolute left-1/2 -translate-x-1/2 top-0 text-lg font-medium whitespace-nowrap">
-            <Link
-              href="/"
-              className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
-              style={{ color: theme.text }}
-            >
-              Gabriel Keller
-            </Link>
+        <div
+          className="sticky top-0 z-40 -mt-14 mb-14 -mx-8 sm:-mx-14 lg:-mx-20 px-8 sm:px-14 lg:px-20 transition-colors duration-300"
+          style={{ backgroundColor: "var(--theme-bg)" }}
+        >
+          <div className="max-w-3xl mx-auto">
+            <div className="relative min-h-6 py-3">
+              <Link
+                href="/blog"
+                className="inline-flex items-center justify-center text-lg font-medium transition-colors duration-300 hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
+                style={{ color: headerText }}
+              >
+                All blogs
+              </Link>
+              <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 text-lg font-medium whitespace-nowrap">
+                <Link
+                  href="/"
+                  className="transition-colors duration-300 hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
+                  style={{ color: headerText }}
+                >
+                  Gabriel Keller
+                </Link>
+              </div>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                <DropdownMenu open={themeMenuOpen} onOpenChange={setThemeMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 p-0 rounded-md hover:bg-transparent hover:opacity-80 focus-visible:ring-0 focus-visible:ring-offset-0 duration-300"
+                      style={{ color: headerText }}
+                      aria-label="Open theme selector"
+                    >
+                      <ThemeIcon dark={theme.isDark} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-36 p-1 shadow-none transition-colors duration-300"
+                    style={{ backgroundColor: "var(--theme-bg)", borderColor: "var(--theme-border)" }}
+                  >
+                    {THEME_OPTIONS.map((option) => {
+                      const active = option.id === themeMode;
+                      return (
+                        <DropdownMenuItem
+                          key={option.id}
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            setThemeMode(option.id);
+                          }}
+                          className="cursor-pointer px-3 py-1.5 text-sm focus:bg-transparent transition-colors duration-300"
+                          style={{
+                            color: active ? headerText : headerMuted,
+                            fontWeight: active ? 500 : 400,
+                          }}
+                        >
+                          {option.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            <div
+              className={`h-px transition-opacity duration-150 ${headerStuck ? "opacity-100" : "opacity-0"}`}
+              style={{ backgroundColor: "var(--theme-border)" }}
+            />
           </div>
         </div>
         {/* Hero image */}
@@ -351,7 +220,6 @@ export function BlogPostClient({
         {/* Article Header */}
         <header className="mb-4 mx-auto max-w-[22.5rem] text-center">
           <h1
-            ref={titleAnchorRef}
             className="text-[1.4rem] sm:text-[1.85rem] font-semibold leading-tight tracking-tight mb-2.5"
             style={{ color: theme.text }}
           >
@@ -420,5 +288,26 @@ export function BlogPostClient({
         </div>
       </div>
     </BlogShell>
+  );
+}
+
+function ThemeIcon({ dark }: { dark: boolean }) {
+  if (dark) {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path
+          d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 1 0 10.5 10.5Z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.5" />
+      <path d="M12 2.5v2.25M12 19.25v2.25M21.5 12h-2.25M4.75 12H2.5M18.718 5.282l-1.591 1.591M6.873 17.127l-1.591 1.591M18.718 18.718l-1.591-1.591M6.873 6.873 5.282 5.282" />
+    </svg>
   );
 }

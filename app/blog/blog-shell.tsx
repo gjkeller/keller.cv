@@ -2,24 +2,10 @@
 
 import Link from "next/link";
 import { useTheme } from "@/lib/theme-context";
-import { usePathname } from "next/navigation";
 
 /** Shared chrome for all blog pages — themed via context */
 export function BlogShell({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   const { theme, themeMode, setThemeMode } = useTheme();
-  const pathname = usePathname();
-  const isBlogPage = pathname.startsWith("/blog");
-
-  const navLinks = [
-    { href: "/", label: "Home", active: pathname === "/" },
-    { href: "/blog", label: "Blog", active: isBlogPage },
-  ];
-
-  const socialLinks = [
-    { href: "https://x.com/gabrieljkeller", label: "Twitter" },
-    { href: "https://github.com/gjkeller", label: "GitHub" },
-  ];
-  const getNavLabel = (label: string) => (label === "Home" ? "← Home" : label);
 
   const themeOptions = [
     { id: "auto", label: "Auto" },
@@ -66,40 +52,6 @@ export function BlogShell({ children, wide }: { children: React.ReactNode; wide?
     </details>
   );
 
-  const renderSidebar = () => (
-    <aside className="hidden lg:block fixed left-8 top-8 z-20 w-56">
-      <div className="pl-3">
-        <nav className="space-y-2 mb-7" aria-label="Blog sidebar links">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="flex items-center justify-between text-[15px] leading-5 transition-opacity hover:opacity-70"
-              style={{ color: link.active ? theme.text : theme.textDim, fontWeight: link.active ? 500 : 400 }}
-            >
-              <span>{getNavLabel(link.label)}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="space-y-2 mb-6">
-          {socialLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-sm transition-opacity hover:opacity-70"
-              style={{ color: theme.textMuted }}
-            >
-              {link.label}
-            </a>
-          ))}
-        </div>
-        <ThemeToggle compact />
-      </div>
-    </aside>
-  );
-
   return (
     <div
       className="min-h-screen transition-colors duration-300"
@@ -121,9 +73,7 @@ export function BlogShell({ children, wide }: { children: React.ReactNode; wide?
           transform: translateY(0);
         }
       `}</style>
-      {renderSidebar()}
-
-      <div className={`mx-auto px-10 sm:px-16 lg:px-24 pt-16 sm:pt-24 pb-8 sm:pb-10 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
+      <div className={`mx-auto px-8 sm:px-14 lg:px-20 pt-14 sm:pt-20 pb-7 sm:pb-9 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
         {children}
 
         {/* Footer */}
@@ -131,7 +81,7 @@ export function BlogShell({ children, wide }: { children: React.ReactNode; wide?
           className="mt-16 pt-8 border-t"
           style={{ borderColor: theme.border }}
         >
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-4">
             <Link
               href="/blog"
               className="text-sm transition-colors hover:opacity-80"
@@ -139,8 +89,11 @@ export function BlogShell({ children, wide }: { children: React.ReactNode; wide?
             >
               &larr; All posts
             </Link>
-            <div className="text-xs" style={{ color: theme.textMuted }}>
-              &copy; {new Date().getFullYear()} Gabriel Keller
+            <div className="flex items-center gap-4">
+              <ThemeToggle compact />
+              <div className="text-xs" style={{ color: theme.textMuted }}>
+                &copy; {new Date().getFullYear()} Gabriel Keller
+              </div>
             </div>
           </div>
         </footer>

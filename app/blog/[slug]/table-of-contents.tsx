@@ -18,6 +18,15 @@ export function InlineTOC({ headings, theme }: { headings: TocHeading[]; theme: 
 
   return (
     <div className="mt-6 mb-12">
+      <style>{`
+        .inline-toc-link {
+          color: var(--toc-color);
+          transition: color 140ms ease;
+        }
+        .inline-toc-link:hover {
+          color: var(--toc-hover-color);
+        }
+      `}</style>
       <hr style={{ borderColor: theme.border }} />
       <button
         onClick={() => setOpen(!open)}
@@ -57,8 +66,11 @@ export function InlineTOC({ headings, theme }: { headings: TocHeading[]; theme: 
                   element.scrollIntoView({ behavior: "smooth" });
                   window.history.replaceState(null, "", `#${h.id}`);
                 }}
-                className={`block py-0.5 transition-colors hover:opacity-70 ${h.level === 3 ? "pl-4" : ""}`}
-                style={{ color: theme.textDim }}
+                className={`inline-toc-link block py-0.5 ${h.level === 3 ? "pl-4" : ""}`}
+                style={{
+                  ["--toc-color" as string]: theme.textDim,
+                  ["--toc-hover-color" as string]: theme.isDark ? theme.text : theme.textMuted,
+                }}
               >
                 {h.text}
               </a>
@@ -76,8 +88,11 @@ export function InlineTOC({ headings, theme }: { headings: TocHeading[]; theme: 
                   element.scrollIntoView({ behavior: "smooth" });
                   window.history.replaceState(null, "", `#${h.id}`);
                 }}
-                className={`block py-0.5 transition-colors hover:opacity-70 ${h.level === 3 ? "pl-4" : ""}`}
-                style={{ color: theme.textDim }}
+                className={`inline-toc-link block py-0.5 ${h.level === 3 ? "pl-4" : ""}`}
+                style={{
+                  ["--toc-color" as string]: theme.textDim,
+                  ["--toc-hover-color" as string]: theme.isDark ? theme.text : theme.textMuted,
+                }}
               >
                 {h.text}
               </a>

@@ -17,6 +17,7 @@ interface TerminalProps {
   onExpand?: () => void;
   onThemeChange?: (name: string) => void;
   borderless?: boolean;
+  sessionKey?: string;
 }
 
 export { THEME_NAMES };
@@ -126,6 +127,7 @@ export function Terminal({
   onExpand,
   onThemeChange,
   borderless = false,
+  sessionKey = "main",
 }: TerminalProps) {
   const dark = theme.isDark;
   const [history, setHistory] = useState<{ prompt: string; command: string; output: string }[]>([]);
@@ -151,6 +153,7 @@ export function Terminal({
   const [autoOutput, setAutoOutput] = useState("");
   const [autoPhase, setAutoPhase] = useState<"idle" | "typing-cmd" | "typing-output">("idle");
   const prevFileRef = useRef<string | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -164,6 +167,47 @@ export function Terminal({
   const outputTyper = useTypewriter(autoPhase === "typing-output" ? autoOutput : "", 6);
 
   const { fs, dirs, urls } = buildFileSystem(staticFiles, dynamicFiles, dynamicUrls, initialUrls);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.sessionStorage.getItem(`terminal-state:${sessionKey}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as {
+          history?: { prompt: string; command: string; output: string }[];
+          dynamicFiles?: Record<string, string>;
+          dynamicUrls?: Record<string, string>;
+          cwd?: string;
+          cmdHistory?: string[];
+        };
+        if (parsed.history) setHistory(parsed.history);
+        if (parsed.dynamicFiles) setDynamicFiles(parsed.dynamicFiles);
+        if (parsed.dynamicUrls) setDynamicUrls(parsed.dynamicUrls);
+        if (parsed.cwd) setCwd(parsed.cwd);
+        if (parsed.cmdHistory) setCmdHistory(parsed.cmdHistory);
+      }
+    } catch {
+      // Ignore storage parse errors and continue with default session.
+    } finally {
+      setStorageReady(true);
+    }
+  }, [sessionKey]);
+
+  useEffect(() => {
+    if (!storageReady || typeof window === "undefined") return;
+    const payload = {
+      history,
+      dynamicFiles,
+      dynamicUrls,
+      cwd,
+      cmdHistory,
+    };
+    try {
+      window.sessionStorage.setItem(`terminal-state:${sessionKey}`, JSON.stringify(payload));
+    } catch {
+      // Ignore quota/storage errors.
+    }
+  }, [storageReady, sessionKey, history, dynamicFiles, dynamicUrls, cwd, cmdHistory]);
 
   /* ── Path resolution ── */
   const resolvePath = useCallback((path: string): string => {
@@ -636,11 +680,13 @@ export function Terminal({
 
   // Initial welcome
   useEffect(() => {
+    if (!storageReady) return;
+    if (history.length > 0) return;
     const welcome = staticFiles["welcome.md"] || "Type 'help' for commands.";
     setAutoCommand("cat welcome.md");
     setAutoOutput(welcome);
     setAutoPhase("typing-cmd");
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [storageReady, history.length, staticFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // React to clicks from left column
   useEffect(() => {

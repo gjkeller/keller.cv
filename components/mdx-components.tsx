@@ -32,7 +32,10 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         <h2 id={id} className="group scroll-mt-24">
           <a href={`#${id}`} className="inline-flex items-center gap-2 no-underline">
             <span>{children}</span>
-            <span className="text-sm opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true">
+            <span
+              className="text-base opacity-0 scale-100 transition-all duration-150 group-hover:opacity-100 group-hover:scale-125"
+              aria-hidden="true"
+            >
               #
             </span>
           </a>
@@ -45,7 +48,10 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         <h3 id={id} className="group scroll-mt-24">
           <a href={`#${id}`} className="inline-flex items-center gap-2 no-underline">
             <span>{children}</span>
-            <span className="text-sm opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true">
+            <span
+              className="text-base opacity-0 scale-100 transition-all duration-150 group-hover:opacity-100 group-hover:scale-125"
+              aria-hidden="true"
+            >
               #
             </span>
           </a>

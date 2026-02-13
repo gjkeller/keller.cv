@@ -8,6 +8,9 @@ interface BlogPostPageProps {
   params: Promise<{
     slug: string;
   }>;
+  searchParams?: Promise<{
+    header?: string;
+  }>;
 }
 
 export async function generateStaticParams() {
@@ -84,8 +87,9 @@ function buildArticleJsonLd(post: {
   };
 }
 
-export default async function BlogPostPage({ params }: BlogPostPageProps) {
+export default async function BlogPostPage({ params, searchParams }: BlogPostPageProps) {
   const { slug } = await params;
+  const resolvedSearchParams = (await searchParams) ?? {};
   const post = getBlogPost(slug);
 
   if (!post) {
@@ -94,6 +98,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   const jsonLd = buildArticleJsonLd({ ...post, slug });
   const headings = extractHeadings(post.content);
+  const rawHeader = resolvedSearchParams.header;
+  const headerVariant =
+    rawHeader === "two" || rawHeader === "three" ? rawHeader : "one";
 
   return (
     <>
@@ -101,7 +108,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <BlogPostClient post={post} headings={headings}>
+      <BlogPostClient post={post} headings={headings} headerVariant={headerVariant}>
         <MDXContent content={post.content} />
       </BlogPostClient>
     </>

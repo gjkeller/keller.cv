@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
 import { useTheme } from "@/lib/theme-context";
@@ -185,6 +187,7 @@ export function InteractiveLayout({
   socialLinks, calLink15, calLink30, name, tagline, bio,
   currentWork, hackathons, posts, terminalFiles, terminalUrls,
 }: Props) {
+  const router = useRouter();
   const [activeFile, setActiveFile] = useState<{ command: string; content: string } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
@@ -193,6 +196,8 @@ export function InteractiveLayout({
   const [isDesktop, setIsDesktop] = useState(true);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
+  const clickTimeoutRef = useRef<number | null>(null);
+  const clickKeyRef = useRef<string | null>(null);
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
     const desktop = mql.matches;
@@ -203,6 +208,13 @@ export function InteractiveLayout({
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
+    },
+    [],
+  );
 
   // Lock body scroll + track visual viewport for mobile terminal (iOS-safe)
   const [mobileVh, setMobileVh] = useState<number | null>(null);
@@ -284,44 +296,57 @@ export function InteractiveLayout({
   }, [setThemeMode, theme]);
 
   const handleClick = useCallback((e: React.MouseEvent, type: string, id: string, url?: string) => {
-    // Cmd-click (or Ctrl-click on non-Mac) opens the URL in a new tab
-    if ((e.metaKey || e.ctrlKey) && url) {
-      window.open(url, "_blank");
+    const key = `${type}-${id}`;
+    if ((e.metaKey || e.ctrlKey || e.shiftKey || e.detail === 2) && url) {
+      if (clickTimeoutRef.current && clickKeyRef.current === key) {
+        window.clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      if (e.metaKey || e.ctrlKey) window.open(url, "_blank");
+      else if (url.startsWith("/")) router.push(url);
+      else window.location.assign(url);
       return;
     }
 
-    const key = `${type}-${id}`;
-    if (activeId === key) { setActiveId(null); return; }
-    setActiveId(key);
-
-    let command: string | null = null;
-    let content: string | null = null;
-
-    if (type === "work") {
-      const item = currentWork.find((w) => w.company === id);
-      if (item) {
-        command = `cat ${item.slug}.md`;
-        content = allFiles[`${item.slug}.md`] ?? null;
+    if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
+    clickKeyRef.current = key;
+    clickTimeoutRef.current = window.setTimeout(() => {
+      if (activeId === key) {
+        setActiveId(null);
+        setActiveFile(null);
+        return;
       }
-    } else if (type === "hackathon") {
-      const item = hackathons.find((h) => h.name === id);
-      if (item) {
-        command = `cat projects/${item.slug}.md`;
-        content = allFiles[`projects/${item.slug}.md`] ?? null;
-      }
-    } else if (type === "post") {
-      const post = posts.find((p) => p.slug === id);
-      if (post) {
-        command = `cat blog/${post.slug}.md`;
-        content = allFiles[`blog/${post.slug}.md`] ?? null;
-      }
-    }
+      setActiveId(key);
 
-    if (command && content) {
-      setActiveFile({ command, content });
-      if (!terminalOpen) setTerminalOpen(true);
-    }
-  }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen]);
+      let command: string | null = null;
+      let content: string | null = null;
+
+      if (type === "work") {
+        const item = currentWork.find((w) => w.company === id);
+        if (item) {
+          command = `cat ${item.slug}.md`;
+          content = allFiles[`${item.slug}.md`] ?? null;
+        }
+      } else if (type === "hackathon") {
+        const item = hackathons.find((h) => h.name === id);
+        if (item) {
+          command = `cat projects/${item.slug}.md`;
+          content = allFiles[`projects/${item.slug}.md`] ?? null;
+        }
+      } else if (type === "post") {
+        const post = posts.find((p) => p.slug === id);
+        if (post) {
+          command = `cat blog/${post.slug}.md`;
+          content = allFiles[`blog/${post.slug}.md`] ?? null;
+        }
+      }
+
+      if (command && content) {
+        setActiveFile({ command, content });
+        if (!terminalOpen) setTerminalOpen(true);
+      }
+    }, 220);
+  }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen, router]);
 
   const toggleMobile = useCallback((key: string) => {
     setMobileExpanded((prev) => (prev === key ? null : key));
@@ -531,7 +556,7 @@ export function InteractiveLayout({
                     </div>
                     <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
                   </button>
-                  <MobileDetail open={isMobileOpen} theme={theme}>
+                  <MobileDetail open={isMobileOpen}>
                     <div className="text-sm leading-relaxed">{renderMarkdown(item.detail, mobileMdStyles)}</div>
                     {item.url && <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Visit &rarr;</a>}
                   </MobileDetail>
@@ -563,7 +588,7 @@ export function InteractiveLayout({
                     </div>
                     <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
                   </button>
-                  <MobileDetail open={isMobileOpen} theme={theme}>
+                  <MobileDetail open={isMobileOpen}>
                     <div className="text-sm leading-relaxed">{renderMarkdown(win.detail, mobileMdStyles)}</div>
                     <a href={win.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">View on Devpost &rarr;</a>
                   </MobileDetail>
@@ -578,7 +603,7 @@ export function InteractiveLayout({
           <section>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
-              <a href="/blog" className="text-xs transition-colors hover:opacity-70" style={{ color: theme.textMuted }}>View all &rarr;</a>
+              <Link href="/blog" className="text-xs transition-colors hover:opacity-70" style={{ color: theme.textMuted }}>View all &rarr;</Link>
             </div>
             {posts.length > 0 ? (
               <div>
@@ -595,7 +620,7 @@ export function InteractiveLayout({
                         <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
                         <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
                       </button>
-                      <MobileDetail open={isMobileOpen} theme={theme}>
+                      <MobileDetail open={isMobileOpen}>
                         <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{post.description || post.content.slice(0, 200)}</p>
                         <a href={`/blog/${post.slug}`} className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Read more &rarr;</a>
                       </MobileDetail>
@@ -627,6 +652,7 @@ export function InteractiveLayout({
             initialFiles={{}}
             initialUrls={allUrls}
             theme={theme}
+            sessionKey="site"
             onClose={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
             onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
             onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
@@ -641,6 +667,7 @@ export function InteractiveLayout({
             initialFiles={{}}
             initialUrls={allUrls}
             theme={theme}
+            sessionKey="site"
             onClose={() => setTerminalOpen(false)}
             onMinimize={() => setTerminalOpen(false)}
             onExpand={() => {}}
@@ -663,7 +690,7 @@ function Section({ title, theme, children }: { title: string; theme: Theme; chil
   );
 }
 
-function MobileDetail({ open, theme, children }: { open: boolean; theme: Theme; children: React.ReactNode }) {
+function MobileDetail({ open, children }: { open: boolean; children: React.ReactNode }) {
   return (
     <div className={`lg:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
       <div className="pb-3 pt-1">{children}</div>

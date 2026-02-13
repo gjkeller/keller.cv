@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/lib/theme-context";
 import { BlogShell } from "../blog-shell";
 import { InlineTOC, type TocHeading } from "./table-of-contents";
 import type { MouseEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 interface BlogPost {
   title: string;
@@ -15,16 +17,27 @@ interface BlogPost {
   readingTime: { text: string };
 }
 
+type HeaderVariant = "one" | "two" | "three";
+
 export function BlogPostClient({
   post,
   headings,
   children,
+  headerVariant = "one",
 }: {
   post: BlogPost;
   headings?: TocHeading[];
   children: React.ReactNode;
+  headerVariant?: HeaderVariant;
 }) {
   const { theme } = useTheme();
+  const titleAnchorRef = useRef<HTMLHeadingElement>(null);
+  const allBlogsLinkRef = useRef<HTMLAnchorElement>(null);
+  const lastScrollYRef = useRef(0);
+  const [allBlogsVisible, setAllBlogsVisible] = useState(true);
+  const [showCompactTitle, setShowCompactTitle] = useState(false);
+  const [mouseNearTop, setMouseNearTop] = useState(false);
+  const [headerHovered, setHeaderHovered] = useState(false);
 
   const formattedDate = new Date(post.date).toLocaleDateString("en-US", {
     year: "numeric",
@@ -38,6 +51,208 @@ export function BlogPostClient({
     const rect = event.currentTarget.getBoundingClientRect();
     event.currentTarget.style.setProperty("--sx", `${event.clientX - rect.left}px`);
     event.currentTarget.style.setProperty("--sy", `${event.clientY - rect.top}px`);
+  };
+
+  useEffect(() => {
+    const updateTitleVisibility = () => {
+      const titleEl = titleAnchorRef.current;
+      if (!titleEl) return;
+      const rect = titleEl.getBoundingClientRect();
+      setShowCompactTitle(rect.bottom < 0);
+    };
+
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const isScrollingDown = currentY > lastScrollYRef.current + 2;
+
+      if (isScrollingDown) setHeaderHovered(false);
+
+      lastScrollYRef.current = currentY;
+      updateTitleVisibility();
+    };
+
+    const handleMouseMove = (event: globalThis.MouseEvent) => {
+      setMouseNearTop(event.clientY <= 72);
+    };
+
+    lastScrollYRef.current = window.scrollY;
+    updateTitleVisibility();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = allBlogsLinkRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setAllBlogsVisible(entry?.isIntersecting ?? false);
+      },
+      { threshold: 0.05 },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const floatingVisible = !allBlogsVisible && (mouseNearTop || headerHovered);
+  const floatingVisibilityClass = floatingVisible
+    ? "opacity-100 pointer-events-auto"
+    : "opacity-0 pointer-events-none";
+
+  const renderFloatingHeader = () => {
+    if (headerVariant === "two") {
+      return (
+        <div
+          className={`fixed top-4 inset-x-0 z-40 px-8 sm:px-14 lg:px-20 transition-opacity duration-150 ease-out ${floatingVisibilityClass}`}
+        >
+          <div
+            className="max-w-[40rem] mx-auto w-full px-3 py-3.5 rounded-2xl border overflow-hidden isolate backdrop-blur-xl backdrop-saturate-150"
+            style={{
+              background:
+                theme.isDark
+                  ? "linear-gradient(90deg, rgba(15,23,42,0.5) 0%, rgba(30,41,59,0.44) 100%)"
+                  : "linear-gradient(90deg, rgba(255,255,255,0.42) 0%, rgba(241,245,249,0.38) 100%)",
+              borderColor: theme.isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.22)",
+              boxShadow: theme.isDark
+                ? "0 6px 14px rgba(2,6,23,0.2)"
+                : "0 6px 14px rgba(15,23,42,0.06)",
+              backdropFilter: "blur(42px) saturate(2.2)",
+              WebkitBackdropFilter: "blur(42px) saturate(2.2)",
+              transform: "translateZ(0)",
+            }}
+            onMouseEnter={() => setHeaderHovered(true)}
+            onMouseLeave={() => setHeaderHovered(false)}
+          >
+            <div className="relative flex items-center">
+              <Link
+                href="/blog"
+                className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
+                style={{ color: theme.text }}
+              >
+                All blogs
+              </Link>
+              <div
+                className={`absolute left-1/2 -translate-x-1/2 text-lg font-medium transition-opacity duration-300 text-center whitespace-nowrap ${
+                  showCompactTitle || !allBlogsVisible ? "opacity-100" : "opacity-0"
+                }`}
+                style={{ color: theme.text }}
+                aria-hidden={!(showCompactTitle || !allBlogsVisible)}
+              >
+                <Link
+                  href="/"
+                  className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
+                  style={{ color: theme.text }}
+                >
+                  Gabriel Keller
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (headerVariant === "three") {
+      return (
+        <div
+          className={`fixed top-5 inset-x-0 z-40 px-8 sm:px-14 lg:px-20 transition-opacity duration-150 ease-out ${floatingVisibilityClass}`}
+        >
+          <div
+            className="max-w-[40rem] mx-auto w-full px-3 py-3 rounded-full border overflow-hidden isolate backdrop-blur-xl backdrop-saturate-150"
+            style={{
+              backgroundColor: theme.isDark ? "rgba(15,23,42,0.48)" : "rgba(255,255,255,0.42)",
+              borderColor: theme.isDark ? "rgba(148,163,184,0.25)" : "rgba(148,163,184,0.22)",
+              boxShadow: theme.isDark
+                ? "0 6px 14px rgba(2,6,23,0.2)"
+                : "0 6px 14px rgba(15,23,42,0.06)",
+              backdropFilter: "blur(42px) saturate(2.2)",
+              WebkitBackdropFilter: "blur(42px) saturate(2.2)",
+              transform: "translateZ(0)",
+            }}
+            onMouseEnter={() => setHeaderHovered(true)}
+            onMouseLeave={() => setHeaderHovered(false)}
+          >
+            <div className="relative flex items-center">
+              <Link
+                href="/blog"
+                className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
+                style={{ color: theme.text }}
+              >
+                All blogs
+              </Link>
+              <div
+                className={`absolute left-1/2 -translate-x-1/2 px-2 sm:px-3 text-lg font-medium text-center transition-opacity duration-300 whitespace-nowrap ${
+                  showCompactTitle || !allBlogsVisible ? "opacity-100" : "opacity-0"
+                }`}
+                style={{ color: theme.text }}
+                aria-hidden={!(showCompactTitle || !allBlogsVisible)}
+              >
+                <Link
+                  href="/"
+                  className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
+                  style={{ color: theme.text }}
+                >
+                  Gabriel Keller
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={`fixed top-4 inset-x-0 z-40 px-8 sm:px-14 lg:px-20 transition-opacity duration-150 ease-out ${floatingVisibilityClass}`}
+      >
+        <div
+          className="max-w-[40rem] mx-auto w-full px-3 py-3.5 rounded-2xl border overflow-hidden isolate backdrop-blur-xl backdrop-saturate-150"
+          style={{
+            backgroundColor: theme.isDark ? "rgba(15,23,42,0.5)" : "rgba(255,255,255,0.42)",
+            borderColor: theme.isDark ? "rgba(148,163,184,0.28)" : "rgba(148,163,184,0.22)",
+            boxShadow: theme.isDark
+              ? "0 6px 14px rgba(2,6,23,0.2)"
+              : "0 6px 14px rgba(15,23,42,0.06)",
+            backdropFilter: "blur(42px) saturate(2.2)",
+            WebkitBackdropFilter: "blur(42px) saturate(2.2)",
+            transform: "translateZ(0)",
+          }}
+          onMouseEnter={() => setHeaderHovered(true)}
+          onMouseLeave={() => setHeaderHovered(false)}
+        >
+          <div className="relative flex items-center min-w-0">
+            <Link
+              href="/blog"
+              className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
+              style={{ color: theme.text }}
+            >
+              All blogs
+            </Link>
+            <div
+              className={`absolute left-1/2 -translate-x-1/2 text-lg font-medium text-center transition-opacity duration-300 whitespace-nowrap ${
+                showCompactTitle || !allBlogsVisible ? "opacity-100" : "opacity-0"
+              }`}
+              style={{ color: theme.text }}
+              aria-hidden={!(showCompactTitle || !allBlogsVisible)}
+            >
+              <Link
+                href="/"
+                className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
+                style={{ color: theme.text }}
+              >
+                Gabriel Keller
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -98,10 +313,30 @@ export function BlogPostClient({
           filter: brightness(0.98);
         }
       `}</style>
-      <div className="max-w-3xl">
+      {renderFloatingHeader()}
+      <div className="max-w-3xl relative">
+        <div className="relative z-10 min-h-6 -mt-14 mb-14">
+          <Link
+            ref={allBlogsLinkRef}
+            href="/blog"
+            className="inline-flex items-center justify-center text-lg font-medium transition-colors hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
+            style={{ color: theme.text }}
+          >
+            All blogs
+          </Link>
+          <div className="absolute left-1/2 -translate-x-1/2 top-0 text-lg font-medium whitespace-nowrap">
+            <Link
+              href="/"
+              className="transition-colors hover:opacity-80 outline-none focus:outline-none focus-visible:outline-none"
+              style={{ color: theme.text }}
+            >
+              Gabriel Keller
+            </Link>
+          </div>
+        </div>
         {/* Hero image */}
         {post.image && (
-          <div className="-mt-2 sm:-mt-3 mb-8 mx-auto max-w-[22.5rem] rounded-lg overflow-hidden">
+          <div className="mt-2 mb-8 mx-auto max-w-[22.5rem] rounded-lg overflow-hidden">
             <Image
               src={post.image}
               alt={post.title}
@@ -116,12 +351,13 @@ export function BlogPostClient({
         {/* Article Header */}
         <header className="mb-4 mx-auto max-w-[22.5rem] text-center">
           <h1
+            ref={titleAnchorRef}
             className="text-[1.4rem] sm:text-[1.85rem] font-semibold leading-tight tracking-tight mb-2.5"
             style={{ color: theme.text }}
           >
             {post.title}
           </h1>
-          <div className="text-sm" style={{ color: theme.textMuted }}>
+          <div className="text-base" style={{ color: theme.textMuted }}>
             <time dateTime={post.date}>{formattedDate}</time>
           </div>
         </header>
@@ -131,7 +367,7 @@ export function BlogPostClient({
 
         {/* Article Content */}
         <article
-          className="blog-prose prose prose-base max-w-none [&_h2]:text-[1.55rem] [&_h2]:font-semibold [&_h2]:tracking-tight [&_h3]:text-[1.25rem] [&_h3]:font-semibold [&_h3]:tracking-tight"
+          className="blog-prose prose prose-lg max-w-none [&_h2]:text-[1.55rem] [&_h2]:font-semibold [&_h2]:tracking-tight [&_h3]:text-[1.25rem] [&_h3]:font-semibold [&_h3]:tracking-tight"
           style={{
             ["--tw-prose-body" as string]: theme.isDark ? "#a5b3c7" : "#7a828e",
             ["--tw-prose-headings" as string]: theme.text,
@@ -155,7 +391,7 @@ export function BlogPostClient({
         {/* Follow CTA */}
         <div className="mt-12">
           <div className="py-5 text-center">
-            <p className="text-base mb-3" style={{ color: theme.textDim }}>
+            <p className="text-lg mb-3" style={{ color: theme.textDim }}>
               If you enjoyed this post, you&apos;ll love my X account:
             </p>
             <a

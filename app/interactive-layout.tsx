@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
@@ -29,6 +28,8 @@ interface Props {
   posts: { slug: string; title: string; date: string; description?: string; content: string }[];
   terminalFiles: Record<string, string>;
   terminalUrls: Record<string, string>;
+  initialSectionIntent?: "home" | "blog";
+  initialCallIntent?: "none" | "15m" | "30m";
 }
 
 /* ── Small icons ── */
@@ -53,6 +54,8 @@ function ghostCardStyle(theme: Theme) {
 }
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
+const DESKTOP_OPEN_HINT_MS = 1000;
+const DESKTOP_CLICK_DELAY_MS = 280;
 
 function toCalPath(calLink: string): string {
   const trimmed = calLink.trim();
@@ -118,6 +121,21 @@ function removeCalModalInstances(): void {
   document.querySelectorAll("cal-modal-box").forEach((el) => el.remove());
 }
 
+function isCalModalVisible(): boolean {
+  if (typeof document === "undefined") return false;
+  const modalNodes = Array.from(
+    document.querySelectorAll<HTMLElement>("cal-modal-box"),
+  );
+  return modalNodes.some((modalEl) => {
+    const styles = window.getComputedStyle(modalEl);
+    if (styles.display === "none" || styles.visibility === "hidden") {
+      return false;
+    }
+    const opacity = Number.parseFloat(styles.opacity || "1");
+    return Number.isNaN(opacity) || opacity > 0.01;
+  });
+}
+
 function constrainCalModalWidth(maxWidthPx = 980): void {
   if (typeof document === "undefined") return;
   const modals = document.querySelectorAll("cal-modal-box");
@@ -144,6 +162,33 @@ function constrainCalModalWidth(maxWidthPx = 980): void {
     `;
     shadow.appendChild(style);
   });
+}
+
+function beginCalModalWidthSync(
+  maxWidthPx = 980,
+  windowMs = 2800,
+): () => void {
+  if (typeof document === "undefined" || typeof window === "undefined") {
+    return () => {};
+  }
+
+  const apply = () => constrainCalModalWidth(maxWidthPx);
+  apply();
+
+  const observer = new MutationObserver(() => apply());
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  const intervalId = window.setInterval(apply, 120);
+  const timeoutId = window.setTimeout(() => {
+    observer.disconnect();
+    window.clearInterval(intervalId);
+  }, windowMs);
+
+  return () => {
+    observer.disconnect();
+    window.clearInterval(intervalId);
+    window.clearTimeout(timeoutId);
+  };
 }
 
 function applyCalUiConfig(
@@ -186,6 +231,8 @@ async function applyCalUiForTheme(theme: Theme): Promise<void> {
 export function InteractiveLayout({
   socialLinks, calLink15, calLink30, name, tagline, bio,
   currentWork, hackathons, posts, terminalFiles, terminalUrls,
+  initialSectionIntent = "home",
+  initialCallIntent = "none",
 }: Props) {
   const router = useRouter();
   const [activeFile, setActiveFile] = useState<{ command: string; content: string } | null>(null);
@@ -196,8 +243,26 @@ export function InteractiveLayout({
   const [isDesktop, setIsDesktop] = useState(true);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalFullscreen, setTerminalFullscreen] = useState(false);
+  const [blogsExpanded, setBlogsExpanded] = useState(
+    initialSectionIntent === "blog",
+  );
+  const [desktopTooltip, setDesktopTooltip] = useState<{
+    key: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const clickTimeoutRef = useRef<number | null>(null);
+  const tooltipTimeoutRef = useRef<number | null>(null);
   const clickKeyRef = useRef<string | null>(null);
+  const singleClickCountRef = useRef(0);
+  const writingHeadingRef = useRef<HTMLDivElement | null>(null);
+  const writingContentRef = useRef<HTMLDivElement | null>(null);
+  const expandInnerRef = useRef<HTMLDivElement | null>(null);
+  const wasExpandedRef = useRef(initialSectionIntent === "blog");
+  const [expandMaxH, setExpandMaxH] = useState(0);
+  const [writingBottomPad, setWritingBottomPad] = useState(0);
+  const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
+  const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
     const desktop = mql.matches;
@@ -212,6 +277,9 @@ export function InteractiveLayout({
   useEffect(
     () => () => {
       if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
+      if (tooltipTimeoutRef.current) window.clearTimeout(tooltipTimeoutRef.current);
+      calWidthSyncCleanupRef.current?.();
+      calWidthSyncCleanupRef.current = null;
     },
     [],
   );
@@ -295,6 +363,42 @@ export function InteractiveLayout({
     void applyCalUiForTheme(nextTheme);
   }, [setThemeMode, theme]);
 
+  const clearDesktopTooltip = useCallback(() => {
+    if (tooltipTimeoutRef.current) {
+      window.clearTimeout(tooltipTimeoutRef.current);
+      tooltipTimeoutRef.current = null;
+    }
+    setDesktopTooltip(null);
+  }, []);
+
+  const showDesktopTooltip = useCallback(
+    (key: string, clientX: number, clientY: number) => {
+      if (!isDesktop) return;
+      if (tooltipTimeoutRef.current) window.clearTimeout(tooltipTimeoutRef.current);
+      setDesktopTooltip({ key, x: clientX, y: clientY });
+      tooltipTimeoutRef.current = window.setTimeout(() => {
+        setDesktopTooltip(null);
+        tooltipTimeoutRef.current = null;
+      }, DESKTOP_OPEN_HINT_MS);
+    },
+    [isDesktop],
+  );
+
+  useEffect(() => {
+    if (!desktopTooltip) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const dx = event.clientX - desktopTooltip.x;
+      const dy = event.clientY - desktopTooltip.y;
+      if (Math.hypot(dx, dy) > 6) {
+        clearDesktopTooltip();
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, [desktopTooltip, clearDesktopTooltip]);
+
   const handleClick = useCallback((e: React.MouseEvent, type: string, id: string, url?: string) => {
     const key = `${type}-${id}`;
     if ((e.metaKey || e.ctrlKey || e.shiftKey || e.detail === 2) && url) {
@@ -302,6 +406,7 @@ export function InteractiveLayout({
         window.clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
       }
+      clearDesktopTooltip();
       if (e.metaKey || e.ctrlKey) window.open(url, "_blank");
       else if (url.startsWith("/")) router.push(url);
       else window.location.assign(url);
@@ -310,6 +415,10 @@ export function InteractiveLayout({
 
     if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
     clickKeyRef.current = key;
+    singleClickCountRef.current += 1;
+    if (singleClickCountRef.current >= 3) {
+      showDesktopTooltip(key, e.clientX, e.clientY);
+    }
     clickTimeoutRef.current = window.setTimeout(() => {
       if (activeId === key) {
         setActiveId(null);
@@ -345,8 +454,8 @@ export function InteractiveLayout({
         setActiveFile({ command, content });
         if (!terminalOpen) setTerminalOpen(true);
       }
-    }, 220);
-  }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen, router]);
+    }, DESKTOP_CLICK_DELAY_MS);
+  }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen, router, clearDesktopTooltip, showDesktopTooltip]);
 
   const toggleMobile = useCallback((key: string) => {
     setMobileExpanded((prev) => (prev === key ? null : key));
@@ -363,7 +472,46 @@ export function InteractiveLayout({
   const calPath15 = useMemo(() => withCalDuration(toCalPath(calLink15), 15), [calLink15]);
   const calPath30 = useMemo(() => withCalDuration(toCalPath(calLink30), 30), [calLink30]);
   const calButtonTheme = theme.isDark ? "dark" : "light";
+  const isTrackingCallModalRef = useRef(false);
+  const hasSeenTrackedCallModalRef = useRef(false);
+  const updateCallUrlForDuration = useCallback(
+    (minutes: number, mode: "push" | "replace" = "replace") => {
+      if (typeof window === "undefined") return;
+      const durationLabel = `${minutes}m`;
+      const nextUrl = `/call?duration=${durationLabel}`;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (currentUrl === nextUrl) return;
+      const method = mode === "push" ? "pushState" : "replaceState";
+      window.history[method](
+        { ...(window.history.state ?? {}), section: "call", duration: durationLabel },
+        "",
+        nextUrl,
+      );
+    },
+    [],
+  );
+  const closeCalModal = useCallback(() => {
+    calWidthSyncCleanupRef.current?.();
+    calWidthSyncCleanupRef.current = null;
+    isTrackingCallModalRef.current = false;
+    hasSeenTrackedCallModalRef.current = false;
+    removeCalModalInstances();
+    if (window.location.pathname === "/call") {
+      window.history.replaceState(
+        { ...(window.history.state ?? {}), section: "home" },
+        "",
+        "/",
+      );
+    }
+  }, []);
   const openCalModal = useCallback(async (namespace: "15m" | "30m", calLink: string, duration: 15 | 30) => {
+    // Reset tracking before replacing/re-opening modal.
+    isTrackingCallModalRef.current = false;
+    hasSeenTrackedCallModalRef.current = false;
+
+    updateCallUrlForDuration(duration, "push");
+    calWidthSyncCleanupRef.current?.();
+    calWidthSyncCleanupRef.current = null;
     removeCalModalInstances();
     // Force a fresh namespace per click so repeated opens of the same CTA
     // cannot reuse stale modal/theme state from previous runs.
@@ -380,11 +528,73 @@ export function InteractiveLayout({
         "ui.color-scheme": calButtonTheme,
       },
     });
-    requestAnimationFrame(() => {
-      constrainCalModalWidth(980);
-      setTimeout(() => constrainCalModalWidth(980), 120);
-    });
-  }, [calButtonTheme, theme]);
+    isTrackingCallModalRef.current = true;
+    hasSeenTrackedCallModalRef.current = false;
+    calWidthSyncCleanupRef.current = beginCalModalWidthSync(980, 2800);
+  }, [calButtonTheme, theme, updateCallUrlForDuration]);
+  const hasAutoOpenedCallRef = useRef(false);
+
+  useEffect(() => {
+    if (initialCallIntent === "none" || hasAutoOpenedCallRef.current) return;
+    if (typeof document !== "undefined" && document.querySelector("cal-modal-box")) {
+      hasAutoOpenedCallRef.current = true;
+      return;
+    }
+
+    const dedupeKey = `${window.location.pathname}${window.location.search}`;
+    const timerId = window.setTimeout(() => {
+      const now = Date.now();
+      const trackedWindow = window as Window & {
+        __kellerAutoCallOpen?: { key: string; ts: number };
+      };
+      const prior = trackedWindow.__kellerAutoCallOpen;
+      if (prior && prior.key === dedupeKey && now - prior.ts < 2500) {
+        hasAutoOpenedCallRef.current = true;
+        return;
+      }
+      trackedWindow.__kellerAutoCallOpen = { key: dedupeKey, ts: now };
+      hasAutoOpenedCallRef.current = true;
+      if (initialCallIntent === "30m") {
+        void openCalModal("30m", calPath30, 30);
+        return;
+      }
+      void openCalModal("15m", calPath15, 15);
+    }, 280);
+    return () => window.clearTimeout(timerId);
+  }, [initialCallIntent, openCalModal, calPath15, calPath30]);
+
+  useEffect(() => {
+    const handleEscapeToCloseCal = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (!isCalModalVisible()) return;
+      closeCalModal();
+    };
+    window.addEventListener("keydown", handleEscapeToCloseCal);
+    return () => window.removeEventListener("keydown", handleEscapeToCloseCal);
+  }, [closeCalModal]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (!isTrackingCallModalRef.current) return;
+
+      const modalVisible = isCalModalVisible();
+      if (modalVisible) {
+        hasSeenTrackedCallModalRef.current = true;
+        return;
+      }
+
+      if (!hasSeenTrackedCallModalRef.current) return;
+
+      isTrackingCallModalRef.current = false;
+      hasSeenTrackedCallModalRef.current = false;
+
+      if (window.location.pathname !== "/call") return;
+
+      closeCalModal();
+    }, 200);
+
+    return () => window.clearInterval(intervalId);
+  }, [closeCalModal]);
 
   /* ── Fluent-style glossy hover (event delegation) ── */
   const mainRef = useRef<HTMLElement>(null);
@@ -405,6 +615,100 @@ export function InteractiveLayout({
     if (related && card.contains(related)) return;
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
+
+  const scrollToWriting = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const heading = writingHeadingRef.current;
+      if (!heading) return;
+      const desiredTop = 92;
+      const currentTop = heading.getBoundingClientRect().top;
+      const targetY = window.scrollY + currentTop - desiredTop;
+      window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+    });
+  }, []);
+
+  const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    if (e.metaKey || e.ctrlKey) {
+      window.open("/blog", "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (blogsExpanded) {
+      setBlogsExpanded(false);
+      if (window.location.pathname === "/blog") {
+        window.history.pushState({ section: "home" }, "", "/");
+      }
+      return;
+    }
+    setBlogsExpanded(true);
+    if (window.location.pathname !== "/blog") {
+      window.history.pushState({ section: "blogs" }, "", "/blog");
+    }
+    scrollToWriting();
+  }, [blogsExpanded, scrollToWriting]);
+
+  useEffect(() => {
+    if (initialSectionIntent !== "blog") return;
+    setBlogsExpanded(true);
+    requestAnimationFrame(() => scrollToWriting());
+  }, [initialSectionIntent, scrollToWriting]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname === "/blog") {
+        setBlogsExpanded(true);
+      } else {
+        setBlogsExpanded(false);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const inner = expandInnerRef.current;
+    const wrapper = inner?.parentElement;
+    if (!inner || !wrapper) return;
+    if (blogsExpanded) {
+      setExpandMaxH(inner.scrollHeight);
+      wasExpandedRef.current = true;
+    } else if (wasExpandedRef.current) {
+      const h = inner.scrollHeight;
+      setExpandMaxH(h);
+      requestAnimationFrame(() => {
+        wrapper.getBoundingClientRect();
+        setExpandMaxH(0);
+      });
+      wasExpandedRef.current = false;
+    }
+  }, [blogsExpanded]);
+
+  useEffect(() => {
+    if (!blogsExpanded) {
+      setWritingBottomPad(0);
+      return;
+    }
+    const measure = () => {
+      const content = writingContentRef.current;
+      const inner = expandInnerRef.current;
+      const footer = document.querySelector("footer");
+      if (!content || !inner || !footer) return;
+      const expandWrapper = inner.parentElement!;
+      const contentBase = content.offsetHeight - expandWrapper.offsetHeight;
+      const naturalHeight = contentBase + inner.scrollHeight;
+      const footerHeight = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
+      const viewportHeight = window.innerHeight;
+      const scrollTargetOffset = 92;
+      const available = viewportHeight - scrollTargetOffset;
+      const needed = available - naturalHeight - footerHeight - 80;
+      setWritingBottomPad(Math.max(0, needed));
+    };
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", measure);
+    };
+  }, [blogsExpanded, posts.length]);
 
   return (
     <main
@@ -542,13 +846,15 @@ export function InteractiveLayout({
               const isMobileOpen = mobileExpanded === key;
               return (
                 <div key={item.company}>
-                  <button onClick={(e) => handleClick(e, "work", item.company, item.url)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
-                    <div className="min-w-0">
-                      <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
-                      <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{item.description}</p>
-                    </div>
-                    <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
-                  </button>
+                  <div className="relative hidden lg:block">
+                    <button onClick={(e) => handleClick(e, "work", item.company, item.url)} className={`${cardClass} ghost-card flex items-start justify-between gap-4`} style={cardStyle}>
+                      <div className="min-w-0">
+                        <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
+                        <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{item.description}</p>
+                      </div>
+                      <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{item.role}</span>
+                    </button>
+                  </div>
                   <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
                     <div className="min-w-0">
                       <span className="font-medium text-[15px]" style={{ color: theme.text }}>{item.company}</span>
@@ -574,13 +880,15 @@ export function InteractiveLayout({
               const isMobileOpen = mobileExpanded === key;
               return (
                 <div key={win.name}>
-                  <button onClick={(e) => handleClick(e, "hackathon", win.name, win.url)} className={`hidden lg:flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
-                    <div className="min-w-0">
-                      <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
-                      <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{win.name}</p>
-                    </div>
-                    <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
-                  </button>
+                  <div className="relative hidden lg:block">
+                    <button onClick={(e) => handleClick(e, "hackathon", win.name, win.url)} className={`${cardClass} ghost-card flex items-start justify-between gap-4`} style={cardStyle}>
+                      <div className="min-w-0">
+                        <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
+                        <p className="text-sm mt-0.5" style={{ color: theme.textDim }}>{win.name}</p>
+                      </div>
+                      <span className="text-xs shrink-0 mt-1" style={{ color: theme.textMuted }}>{win.prize}</span>
+                    </button>
+                  </div>
                   <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-start justify-between gap-4`} style={cardStyle}>
                     <div className="min-w-0">
                       <span className="font-medium text-[15px]" style={{ color: theme.text }}>{win.project}</span>
@@ -601,21 +909,31 @@ export function InteractiveLayout({
 
           {/* Writing */}
           <section>
-            <div className="flex items-center justify-between mb-2">
+            <div ref={writingContentRef}>
+            <div ref={writingHeadingRef} className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
-              <Link href="/blog" className="text-xs transition-colors hover:opacity-70" style={{ color: theme.textMuted }}>View all &rarr;</Link>
+              <button
+                type="button"
+                onClick={handleViewAllClick}
+                className="text-xs transition-colors hover:opacity-70"
+                style={{ color: theme.textMuted }}
+              >
+                {blogsExpanded ? "Collapse" : "View all \u2192"}
+              </button>
             </div>
-            {posts.length > 0 ? (
+            {previewPosts.length > 0 ? (
               <div>
-                {posts.map((post) => {
+                {previewPosts.map((post) => {
                   const key = `post-${post.slug}`;
                   const isMobileOpen = mobileExpanded === key;
                   return (
                     <div key={post.slug}>
-                      <button onClick={(e) => handleClick(e, "post", post.slug, `/blog/${post.slug}`)} className={`hidden lg:flex ${cardClass} ghost-card items-baseline justify-between gap-4`} style={cardStyle}>
-                        <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
-                        <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
-                      </button>
+                      <div className="relative hidden lg:block">
+                        <button onClick={(e) => handleClick(e, "post", post.slug, `/blog/${post.slug}`)} className={`${cardClass} ghost-card flex items-baseline justify-between gap-4`} style={cardStyle}>
+                          <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
+                          <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                        </button>
+                      </div>
                       <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-baseline justify-between gap-4`} style={cardStyle}>
                         <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
                         <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
@@ -629,6 +947,47 @@ export function InteractiveLayout({
                 })}
               </div>
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
+
+            {/* Expanded blog list */}
+            <div
+              className="overflow-hidden"
+              style={{
+                maxHeight: `${expandMaxH}px`,
+                opacity: blogsExpanded ? 1 : 0,
+                transition: "max-height 400ms cubic-bezier(0.22,1,0.36,1), opacity 300ms ease",
+              }}
+            >
+              <div ref={expandInnerRef}>
+                {posts.slice(previewPosts.length).map((post) => {
+                  const key = `post-${post.slug}`;
+                  const isMobileOpen = mobileExpanded === key;
+                  return (
+                    <div key={post.slug}>
+                      <div className="relative hidden lg:block">
+                        <button onClick={(e) => handleClick(e, "post", post.slug, `/blog/${post.slug}`)} className={`${cardClass} ghost-card flex items-baseline justify-between gap-4`} style={cardStyle}>
+                          <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
+                          <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                        </button>
+                      </div>
+                      <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-baseline justify-between gap-4`} style={cardStyle}>
+                        <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
+                        <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                      </button>
+                      <MobileDetail open={isMobileOpen}>
+                        <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{post.description || post.content.slice(0, 200)}</p>
+                        <a href={`/blog/${post.slug}`} className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Read more &rarr;</a>
+                      </MobileDetail>
+                    </div>
+                  );
+                })}
+
+                <BearBalloonGraphic color={theme.textMuted} isDark={theme.isDark} />
+              </div>
+            </div>
+            </div>
+            {blogsExpanded && writingBottomPad > 0 && (
+              <div aria-hidden="true" style={{ height: `${writingBottomPad}px` }} />
+            )}
           </section>
 
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
@@ -676,6 +1035,8 @@ export function InteractiveLayout({
           />
         </div>
       ) : null}
+
+      <DesktopCursorHint tooltip={desktopTooltip} />
     </main>
   );
 }
@@ -694,6 +1055,48 @@ function MobileDetail({ open, children }: { open: boolean; children: React.React
   return (
     <div className={`lg:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
       <div className="pb-3 pt-1">{children}</div>
+    </div>
+  );
+}
+
+function BearBalloonGraphic({ color, isDark }: { color: string; isDark: boolean }) {
+  return (
+    <div className="flex flex-col items-center py-12 select-none">
+      <img
+        src="/images/bear-balloon.png"
+        alt="Teddy bear watching a balloon float away"
+        width={120}
+        height={206}
+        style={{ mixBlendMode: isDark ? "screen" : "luminosity" }}
+        draggable={false}
+      />
+      <p className="text-xs mt-6" style={{ color }}>No more posts</p>
+    </div>
+  );
+}
+
+function DesktopCursorHint({
+  tooltip,
+}: {
+  tooltip: { key: string; x: number; y: number } | null;
+}) {
+  if (!tooltip) return null;
+  return (
+    <div
+      className="pointer-events-none fixed z-[70]"
+      style={{
+        left: tooltip.x,
+        top: tooltip.y,
+        transform: "translate(-50%, calc(-100% - 12px))",
+      }}
+    >
+      <span className="relative inline-flex whitespace-nowrap rounded-xl bg-[#2b2d31]/95 px-3 py-1.5 text-center text-xs font-medium leading-none text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+        Double click to open
+      </span>
+      <span
+        aria-hidden="true"
+        className="absolute left-1/2 top-full h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-[#2b2d31]/95"
+      />
     </div>
   );
 }

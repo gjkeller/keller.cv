@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { getBlogPosts } from "@/lib/mdx";
-import { getAllTerminalFiles } from "@/lib/content";
-import { BlogIndexClient } from "./blog-index-client";
+import { HomePageContent } from "@/app/home-page-content";
 
 export const metadata: Metadata = {
   title: "Gabe's Blog",
@@ -24,20 +22,5 @@ export const metadata: Metadata = {
 };
 
 export default function BlogPage() {
-  const posts = getBlogPosts();
-  const terminal = getAllTerminalFiles();
-
-  return (
-    <BlogIndexClient
-      posts={posts.map((post) => ({
-        slug: post.slug,
-        title: post.title,
-        date: post.date,
-        description: post.description,
-        content: post.content,
-      }))}
-      terminalFiles={terminal.files}
-      terminalUrls={terminal.urls}
-    />
-  );
+  return <HomePageContent initialSectionIntent="blog" />;
 }

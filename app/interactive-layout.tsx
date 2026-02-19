@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
@@ -656,17 +656,48 @@ export function InteractiveLayout({
     }
   }, [blogsExpanded]);
 
-  const didInitialBlogScroll = useRef(false);
-  useEffect(() => {
-    if (initialSectionIntent !== "blog" || didInitialBlogScroll.current) return;
-    didInitialBlogScroll.current = true;
+  const didInitialBlogLayout = useRef(false);
+  useLayoutEffect(() => {
+    if (initialSectionIntent !== "blog" || didInitialBlogLayout.current) return;
+    didInitialBlogLayout.current = true;
+
     const inner = expandInnerRef.current;
     const wrapper = inner?.parentElement;
-    if (inner && wrapper) {
-      wrapper.style.transition = "none";
+    if (!inner || !wrapper) return;
+
+    const h = inner.scrollHeight;
+    wrapper.style.transition = "none";
+    wrapper.style.maxHeight = `${h}px`;
+    wrapper.style.opacity = "1";
+    wrapper.getBoundingClientRect();
+    setExpandMaxH(h);
+
+    const content = writingContentRef.current;
+    const footer = document.querySelector("footer");
+    const section = wrapper.closest("section");
+    if (content && footer && section) {
+      const contentBase = content.offsetHeight - wrapper.offsetHeight + h;
+      const footerH = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
+      const termTop = getTerminalTop();
+      const pad = Math.max(0, window.innerHeight - termTop - contentBase - footerH - 80);
+      if (pad > 0) {
+        const spacer = document.createElement("div");
+        spacer.setAttribute("aria-hidden", "true");
+        spacer.style.height = `${pad}px`;
+        spacer.dataset.blogSpacer = "true";
+        section.appendChild(spacer);
+      }
+      setWritingBottomPad(pad);
+      section.getBoundingClientRect();
     }
-    pendingScrollRef.current = "instant";
-  }, [initialSectionIntent]);
+
+    scrollToWriting("instant");
+
+    requestAnimationFrame(() => {
+      wrapper.style.transition = "";
+      section?.querySelector("[data-blog-spacer]")?.remove();
+    });
+  }, [initialSectionIntent, scrollToWriting]);
 
   useEffect(() => {
     const handlePopState = () => {

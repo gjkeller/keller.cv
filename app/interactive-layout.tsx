@@ -258,7 +258,9 @@ export function InteractiveLayout({
   const writingHeadingRef = useRef<HTMLDivElement | null>(null);
   const writingContentRef = useRef<HTMLDivElement | null>(null);
   const expandInnerRef = useRef<HTMLDivElement | null>(null);
+  const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
   const wasExpandedRef = useRef(initialSectionIntent === "blog");
+  const pendingScrollRef = useRef<ScrollBehavior | null>(null);
   const [expandMaxH, setExpandMaxH] = useState(0);
   const [writingBottomPad, setWritingBottomPad] = useState(0);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
@@ -616,16 +618,24 @@ export function InteractiveLayout({
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
 
-  const scrollToWriting = useCallback(() => {
-    window.requestAnimationFrame(() => {
+  const getTerminalTop = useCallback(() => {
+    const wrapper = terminalWrapperRef.current;
+    if (wrapper) return wrapper.getBoundingClientRect().top;
+    return window.innerHeight * 0.1;
+  }, []);
+
+  const scrollToWriting = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const run = () => {
       const heading = writingHeadingRef.current;
       if (!heading) return;
-      const desiredTop = 92;
+      const desiredTop = getTerminalTop();
       const currentTop = heading.getBoundingClientRect().top;
       const targetY = window.scrollY + currentTop - desiredTop;
-      window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
-    });
-  }, []);
+      window.scrollTo({ top: Math.max(0, targetY), behavior });
+    };
+    if (behavior === "instant") run();
+    else requestAnimationFrame(run);
+  }, [getTerminalTop]);
 
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
@@ -639,22 +649,29 @@ export function InteractiveLayout({
       }
       return;
     }
+    pendingScrollRef.current = "smooth";
     setBlogsExpanded(true);
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
     }
-    scrollToWriting();
-  }, [blogsExpanded, scrollToWriting]);
+  }, [blogsExpanded]);
 
+  const didInitialBlogScroll = useRef(false);
   useEffect(() => {
-    if (initialSectionIntent !== "blog") return;
-    setBlogsExpanded(true);
-    requestAnimationFrame(() => scrollToWriting());
-  }, [initialSectionIntent, scrollToWriting]);
+    if (initialSectionIntent !== "blog" || didInitialBlogScroll.current) return;
+    didInitialBlogScroll.current = true;
+    const inner = expandInnerRef.current;
+    const wrapper = inner?.parentElement;
+    if (inner && wrapper) {
+      wrapper.style.transition = "none";
+    }
+    pendingScrollRef.current = "instant";
+  }, [initialSectionIntent]);
 
   useEffect(() => {
     const handlePopState = () => {
       if (window.location.pathname === "/blog") {
+        pendingScrollRef.current = "smooth";
         setBlogsExpanded(true);
       } else {
         setBlogsExpanded(false);
@@ -662,7 +679,7 @@ export function InteractiveLayout({
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [scrollToWriting]);
 
   useEffect(() => {
     const inner = expandInnerRef.current;
@@ -697,7 +714,7 @@ export function InteractiveLayout({
       const naturalHeight = contentBase + inner.scrollHeight;
       const footerHeight = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
       const viewportHeight = window.innerHeight;
-      const scrollTargetOffset = 92;
+      const scrollTargetOffset = getTerminalTop();
       const available = viewportHeight - scrollTargetOffset;
       const needed = available - naturalHeight - footerHeight - 80;
       setWritingBottomPad(Math.max(0, needed));
@@ -708,7 +725,24 @@ export function InteractiveLayout({
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", measure);
     };
-  }, [blogsExpanded, posts.length]);
+  }, [blogsExpanded, posts.length, getTerminalTop]);
+
+  useEffect(() => {
+    if (!blogsExpanded || expandMaxH <= 0 || !pendingScrollRef.current) return;
+    const id = window.setTimeout(() => {
+      const behavior = pendingScrollRef.current;
+      if (!behavior) return;
+      pendingScrollRef.current = null;
+      scrollToWriting(behavior);
+      if (behavior === "instant") {
+        const wrapper = expandInnerRef.current?.parentElement;
+        if (wrapper) {
+          requestAnimationFrame(() => { wrapper.style.transition = ""; });
+        }
+      }
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [blogsExpanded, expandMaxH, writingBottomPad, scrollToWriting]);
 
   return (
     <main
@@ -998,7 +1032,7 @@ export function InteractiveLayout({
 
       {/* Single terminal instance — wrapper switches between desktop/mobile layout */}
       {isDesktop ? (
-        <div className={`fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        <div ref={terminalWrapperRef} className={`fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
           !terminalOpen
             ? "transition-all duration-150 opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
             : terminalFullscreen

@@ -1,0 +1,153 @@
+---
+title: "AI-Assisted Software Engineering in 2026"
+description: "The companion post to my talk — context problems, paradigm shifts, and what to do about it."
+date: "2026-02-18"
+author: "Gabriel Keller"
+tags: ["ai", "agents", "cursor", "ralph", "software-engineering"]
+draft: true
+---
+
+I gave a talk recently on AI-assisted software engineering in 2026. This is the companion blog post — the references, the reasoning, and the stuff that didn't fit on a slide.
+
+The deck assumed a lot of knowledge. This post doesn't. If you were in the room, this fills in the gaps. If you weren't, this is the full version.
+
+## The premise
+
+Three quotes set the stage:
+
+> "For the first time, the models are good enough to build on top of." — Jensen Huang, Davos, January 2025
+
+> "We are still in the beginning phases of AI diffusion." — Satya Nadella, January 2025
+
+> "We are now starting to roll out AI agents, which will eventually feel like virtual co-workers. Imagine 1,000 of them. Or 1 million of them." — Sam Altman, January 2026
+
+These aren't hype merchants. These are the CEOs of NVIDIA, Microsoft, and OpenAI saying the same thing from different angles: the tooling layer is the game now. The base models are good enough. What you build on top of them is what matters.
+
+## Three problems
+
+Every engineer I've talked to who's tried agentic coding and walked away frustrated hit one of three walls. Understanding them is the whole game.
+
+### 1. The context problem
+
+Agents don't know what you know. They don't know your project structure, your design decisions, your preferences, your team's conventions. The first time you open Cursor on a new project, the agent is flying blind.
+
+The fix is documentation — but not the kind you write for humans. Agent-optimized docs. Markdown files that live in your repo and are designed to be consumed by LLMs. An `AGENTS.md` at the root that tells the agent who it is, how the project works, and what the conventions are. A `docs/` folder with specs. A `instructions/` folder with checklists.
+
+The key insight: the more context you front-load into files the agent reads automatically, the less you have to repeat yourself in prompts. This is the single highest-leverage thing you can do to improve your AI workflow.
+
+### 2. Context rot
+
+Here's the subtle one. Every message you send, every file the agent reads, every tool call it makes — all of it fills the context window. And context windows degrade. The "smart zone" is somewhere around 40-60% utilization. Past that, the model starts making dumber decisions. Compaction (summarizing old context to free space) sounds good in theory but loses signal in practice.
+
+The solution is counterintuitive: make the agent exit. Run it in a loop where each iteration starts fresh.
+
+```bash
+while :; do cat PROMPT.md | claude-code ; done
+```
+
+This is the [Ralph loop](https://github.com/gjkeller/ralph). Each iteration: read the checklist, pick the next unchecked task, implement it, verify, check off, commit, exit. The loop restarts with a clean context window. State lives on disk — in checklists, git history, and markdown files — not in the model's memory.
+
+Small steps, constant resets. It sounds wasteful but it means every iteration runs in the smart zone.
+
+### 3. Results not good enough
+
+This one's usually the engineer's fault, not the model's. Three things fix it:
+
+**Talk to it.** Dump your thoughts. Describe what you want in natural language. Use voice dictation — [Wispr Flow](https://wisprflow.ai) or [Amical](https://amical.ai). The more context you give per prompt, the better the output. Most people under-prompt.
+
+**Provide great tools.** Skills, custom commands, good linting, good tests. The model is only as good as the feedback loop it has access to. If it can't run your tests, it can't verify its work.
+
+**Use good inspiration.** Upload screenshots of designs you like. Point the agent at reference implementations. Show it code from other projects that does something similar. Models are excellent at pattern-matching when you give them the pattern.
+
+And the hardest one: **trust the agent.** You are often the bottleneck. The mental barrier of "I should write this myself" has exacerbated the gap between AI-power-users and everyone else. Decide what you truly want to do on your own, and delegate the rest.
+
+## The paradigm shift
+
+The paradigm shift in AI-assisted engineering is not better LLMs, better hardware, or more VC money.
+
+It's this: **LLMs are dumb. Tooling makes them smart.**
+
+The model itself is a commodity. What differentiates a 10x AI-assisted engineer from someone who tried Copilot once and gave up is the scaffolding around the model: the docs, the loop, the tools, the feedback mechanisms, the context engineering.
+
+This is why the next five years will be dominated by advancements in LLM tooling, not LLM capabilities. The models are already good enough. The tooling isn't.
+
+## Why you should care
+
+### People are doing it, and it's working
+
+Peter Steinberger got a [$1B+ exit from OpenAI](https://steipete.me/posts/2026/openclaw) for building OpenClaw. He wrote extensively about his workflow in [Shipping at Inference Speed](https://steipete.me/posts/2025/shipping-at-inference-speed) — it's the best writeup I've seen on what daily agentic engineering actually looks like. His approach: multiple projects in parallel, commit to main, iterate fast, let the model read lots of code before writing any, and maintain docs that the agent reads automatically.
+
+Geoffrey Huntley's [Ralph Loops from First Principles](https://www.youtube.com/watch?v=4Nna09dG_c0) video covers the orchestrator pattern and context window economics. It's the theoretical foundation for why the loop works.
+
+### Your job probably depends on it
+
+From a memo sent by Meta's Head of People, Janelle Gale, in November 2025:
+
+> "For 2025, we'll reward those who made exceptional AI-driven impact, either in their own work or by improving their team's performance."
+
+Performance expectations are changing. Companies are starting to measure AI adoption as a dimension of engineering output.
+
+And then there's the [Harvard/NBER study](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5425555) (Hui, Jin, Yin & Zhang, 2025) on GenAI's impact on the labor market. The key finding:
+
+> "The junior decline is concentrated in occupations most exposed to GenAI and is driven by slower hiring rather than increased separations or promotions."
+
+Translation: companies aren't firing juniors — they're just not hiring as many new ones. The entry-level pipeline is narrowing. If you're a student or early-career engineer, the bar just got higher. AI proficiency isn't a nice-to-have; it's becoming table stakes.
+
+### It's deeply fascinating
+
+This is genuinely one of the most interesting things happening in software right now. The feedback loops are tightening. The iteration speed is compressing. The gap between "I have an idea" and "I can see it working" has collapsed from days to minutes. If you care about building things, this is the most exciting time to be doing it.
+
+## What to do about it
+
+### For engineers
+
+**Adopt modern specs.** `AGENTS.md` is becoming a standard. Put one in every repo. Add skills — both project-level (`.cursor/skills/`) and global (`~/.cursor/skills/`). Get rid of MCPs and slash commands if they're not pulling their weight. Try ditching your IDE entirely and working from the terminal with Claude Code or Codex.
+
+**Document everything.** Use markdown. Make agents document themselves. Make agents refer to their own past context through files on disk, not conversation memory.
+
+**Challenge agents to do more.** Push past the "I'll just do this part myself" instinct. You are often the bottleneck. Trust the agent to make more decisions. This mental shift is what separates power users from casual users.
+
+**Try new things early and often.** The space moves fast. My advice is already outdated by the time you read it. Try talking to your computer — voice dictation changes the dynamic completely. Try new IDEs. Try [OpenClaw](https://openclaw.ai). Get excited about this.
+
+### For founders
+
+**Read voraciously.** Three must-reads:
+- Guillermo Rauch's ["G's Last Exam"](https://x.com/rauchg/status/2020616857561284848) — on taste, speed, and building in the AI era
+- [YC's Request for Startups (Spring 2026)](https://www.ycombinator.com/rfs) — where the smart money sees opportunity. Notable entries: "Cursor for Product Managers," AI-native agencies, AI guidance for physical work
+- Theo's ["The Agentic Code Problem"](https://x.com/theo/status/2018091358251372601) — the tooling gap and why it matters
+
+**Understand the scene.** You need to be up to speed with what exists before you can see what's missing. Otherwise you'll build something that already exists or fall into a tarpit idea.
+
+**Solo founders are more viable than ever.** Early hires and co-founders are still critical, but a single technical founder with strong AI tooling can now build what used to require a team of five. The leverage is enormous.
+
+**Taste is the new moat.** When anyone can build anything, the differentiator is knowing *what* to build and *how it should feel*. [Rich Zou put it well](https://x.com/richzou/status/2023578375462527170) — good founders are good recruiters, and taste compounds.
+
+## Your todo list
+
+1. **Learn how an agent works. Build one.** Not conceptually — actually build an autonomous agent that runs in a loop, picks tasks, and commits code. This is the fastest way to internalize the paradigm.
+
+2. **Spend a week improving your workflow.** Set up `AGENTS.md`, create documentation for your agents, try the Ralph loop, set up voice dictation. One focused week will 10x your output permanently.
+
+3. **Keep exploring.** Read the links above. Follow the people building in this space. Ship something with agents and see how it feels.
+
+## K-shaped divergence
+
+One pattern I keep seeing: the distribution of AI adoption is K-shaped. There's an in-group that's shipping at 10x speed and a larger group that's still using AI like a fancy autocomplete. The gap is widening, not closing.
+
+There's a shared terminology developing — context rot, smart zone, ralph loops, agent-optimized docs — but there's no class teaching it. It's oral tradition passed through blog posts, Discord servers, and conference hallways. The communication gap between the two groups is real and growing.
+
+For startups, AI fluency is becoming a litmus test. If a founding team isn't building with agents, investors notice. If an engineering team can't articulate their AI workflow, it signals something.
+
+The good news: the barrier to entry is nearly zero. Student developer packs, free tiers, open source tools. The only barrier is the willingness to change how you work.
+
+## References
+
+- **Peter Steinberger** — [Shipping at Inference Speed](https://steipete.me/posts/2025/shipping-at-inference-speed) (Dec 2025). The best practitioner writeup on daily agentic engineering.
+- **Geoffrey Huntley** — [Ralph Loops from First Principles](https://www.youtube.com/watch?v=4Nna09dG_c0). Context window economics and the orchestrator pattern.
+- **Guillermo Rauch** — ["G's Last Exam"](https://x.com/rauchg/status/2020616857561284848). On taste and speed in the AI era.
+- **Theo** — ["The Agentic Code Problem"](https://x.com/theo/status/2018091358251372601). The tooling gap.
+- **Rich Zou** — [On taste as a moat](https://x.com/richzou/status/2023578375462527170).
+- **Hui, Jin, Yin & Zhang** — ["Generative AI and the Labor Market"](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5425555) (Harvard/NBER, 2025). Impact on junior hiring.
+- **Y Combinator** — [Request for Startups, Spring 2026](https://www.ycombinator.com/rfs). Where the money sees opportunity.
+- **Meta** — Internal memo from Janelle Gale (Nov 2025) on rewarding AI-driven impact.
+- **Dr. Ralph** — [github.com/gjkeller/ralph](https://github.com/gjkeller/ralph). The methodology behind the loop.

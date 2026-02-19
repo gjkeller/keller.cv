@@ -4,7 +4,7 @@ description: "The companion post to my talk — context problems, paradigm shift
 date: "2026-02-18"
 author: "Gabriel Keller"
 tags: ["ai", "agents", "cursor", "ralph", "software-engineering"]
-draft: true
+draft: false
 ---
 
 I gave a talk recently on AI-assisted software engineering in 2026. This is the companion blog post — the references, the reasoning, and the stuff that didn't fit on a slide.
@@ -79,9 +79,11 @@ Peter Steinberger got a [$1B+ exit from OpenAI](https://steipete.me/posts/2026/o
 
 Geoffrey Huntley's [Ralph Loops from First Principles](https://www.youtube.com/watch?v=4Nna09dG_c0) video covers the orchestrator pattern and context window economics. It's the theoretical foundation for why the loop works.
 
+Cursor's Michael Truell posted a [video of agents building a 3M+ line browser in a week](https://x.com/mntruell/status/2012825801381580880). Alex Finn [woke up to a phone call from his own AI agent](https://x.com/AlexFinn/status/2017305997212323887) — overnight, his Clawdbot had provisioned a Twilio number, connected the ChatGPT voice API, and called him. It now has full control of his computer while they talk. These aren't demos. These are people's daily workflows.
+
 ### Your job probably depends on it
 
-From a memo sent by Meta's Head of People, Janelle Gale, in November 2025:
+From a memo sent by Meta's Head of People, Janelle Gale, in November 2025 ([reported by Benjamin Broomfield, HR Grapevine](https://www.hrgrapevine.com/content/article/2025-01-17-meta-will-reward-exceptional-ai-driven-impact-in-2025)):
 
 > "For 2025, we'll reward those who made exceptional AI-driven impact, either in their own work or by improving their team's performance."
 
@@ -93,7 +95,11 @@ And then there's the [Harvard/NBER study](https://papers.ssrn.com/sol3/papers.cf
 
 Translation: companies aren't firing juniors — they're just not hiring as many new ones. The entry-level pipeline is narrowing. If you're a student or early-career engineer, the bar just got higher. AI proficiency isn't a nice-to-have; it's becoming table stakes.
 
-### It's deeply fascinating
+### If you can code, you already have a head start
+
+Here's the thing most people miss: AI engineering entertains almost the exact same skillset as traditional software engineering. Decomposing problems. Debugging feedback loops. Designing systems that are maintainable and testable. Reading code you didn't write. Knowing when an abstraction is wrong. Knowing when to throw something away and start over.
+
+If you're a good coder, you will be an *amazing* AI engineer. The mental models transfer directly. The difference is that instead of writing every line yourself, you're steering an agent that writes them — but the judgment calls are identical. What to build, how to structure it, when the output smells wrong, when to push back on the tool's suggestion. That's all engineering intuition, and you already have it.
 
 This is genuinely one of the most interesting things happening in software right now. The feedback loops are tightening. The iteration speed is compressing. The gap between "I have an idea" and "I can see it working" has collapsed from days to minutes. If you care about building things, this is the most exciting time to be doing it.
 
@@ -149,5 +155,7 @@ The good news: the barrier to entry is nearly zero. Student developer packs, fre
 - **Rich Zou** — [On taste as a moat](https://x.com/richzou/status/2023578375462527170).
 - **Hui, Jin, Yin & Zhang** — ["Generative AI and the Labor Market"](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5425555) (Harvard/NBER, 2025). Impact on junior hiring.
 - **Y Combinator** — [Request for Startups, Spring 2026](https://www.ycombinator.com/rfs). Where the money sees opportunity.
-- **Meta** — Internal memo from Janelle Gale (Nov 2025) on rewarding AI-driven impact.
+- **Meta** — Internal memo from Janelle Gale (Nov 2025) on rewarding AI-driven impact. [Reported by Benjamin Broomfield, HR Grapevine](https://www.hrgrapevine.com/content/article/2025-01-17-meta-will-reward-exceptional-ai-driven-impact-in-2025).
+- **Michael Truell** — [Cursor agents building a 3M+ line browser in a week](https://x.com/mntruell/status/2012825801381580880).
+- **Alex Finn** — [Clawdbot autonomously provisioning a phone number and calling its owner](https://x.com/AlexFinn/status/2017305997212323887).
 - **Dr. Ralph** — [github.com/gjkeller/ralph](https://github.com/gjkeller/ralph). The methodology behind the loop.

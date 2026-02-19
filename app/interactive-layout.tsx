@@ -674,28 +674,21 @@ export function InteractiveLayout({
 
     const content = writingContentRef.current;
     const footer = document.querySelector("footer");
-    const section = wrapper.closest("section");
-    if (content && footer && section) {
+    if (content && footer) {
       const contentBase = content.offsetHeight - wrapper.offsetHeight + h;
       const footerH = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
       const termTop = getTerminalTop();
       const pad = Math.max(0, window.innerHeight - termTop - contentBase - footerH - 80);
-      if (pad > 0) {
-        const spacer = document.createElement("div");
-        spacer.setAttribute("aria-hidden", "true");
-        spacer.style.height = `${pad}px`;
-        spacer.dataset.blogSpacer = "true";
-        section.appendChild(spacer);
-      }
       setWritingBottomPad(pad);
-      section.getBoundingClientRect();
+      wrapper.style.maxHeight = `${h + pad}px`;
+      wrapper.getBoundingClientRect();
+      setExpandMaxH(h + pad);
     }
 
     scrollToWriting("instant");
 
     requestAnimationFrame(() => {
       wrapper.style.transition = "";
-      section?.querySelector("[data-blog-spacer]")?.remove();
     });
   }, [initialSectionIntent, scrollToWriting]);
 
@@ -712,14 +705,35 @@ export function InteractiveLayout({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [scrollToWriting]);
 
+  const computePad = useCallback(() => {
+    const content = writingContentRef.current;
+    const inner = expandInnerRef.current;
+    const footer = document.querySelector("footer");
+    if (!content || !inner || !footer) return 0;
+    const expandWrapper = inner.parentElement!;
+    const contentBase = content.offsetHeight - expandWrapper.offsetHeight;
+    const baseInnerH = inner.scrollHeight;
+    const naturalHeight = contentBase + baseInnerH;
+    const footerHeight = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
+    const scrollTargetOffset = getTerminalTop();
+    const available = window.innerHeight - scrollTargetOffset;
+    return Math.max(0, available - naturalHeight - footerHeight - 80);
+  }, [getTerminalTop]);
+
   useEffect(() => {
     const inner = expandInnerRef.current;
     const wrapper = inner?.parentElement;
     if (!inner || !wrapper) return;
+
     if (blogsExpanded) {
-      setExpandMaxH(inner.scrollHeight);
+      const pad = computePad();
+      setWritingBottomPad(pad);
+      requestAnimationFrame(() => {
+        setExpandMaxH(inner.scrollHeight);
+      });
       wasExpandedRef.current = true;
     } else if (wasExpandedRef.current) {
+      setWritingBottomPad(0);
       const h = inner.scrollHeight;
       setExpandMaxH(h);
       requestAnimationFrame(() => {
@@ -728,35 +742,27 @@ export function InteractiveLayout({
       });
       wasExpandedRef.current = false;
     }
-  }, [blogsExpanded]);
+  }, [blogsExpanded, computePad]);
 
   useEffect(() => {
-    if (!blogsExpanded) {
-      setWritingBottomPad(0);
-      return;
-    }
-    const measure = () => {
-      const content = writingContentRef.current;
+    if (!blogsExpanded) return;
+    const handleResize = () => {
       const inner = expandInnerRef.current;
-      const footer = document.querySelector("footer");
-      if (!content || !inner || !footer) return;
-      const expandWrapper = inner.parentElement!;
-      const contentBase = content.offsetHeight - expandWrapper.offsetHeight;
-      const naturalHeight = contentBase + inner.scrollHeight;
-      const footerHeight = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
-      const viewportHeight = window.innerHeight;
-      const scrollTargetOffset = getTerminalTop();
-      const available = viewportHeight - scrollTargetOffset;
-      const needed = available - naturalHeight - footerHeight - 80;
-      setWritingBottomPad(Math.max(0, needed));
+      const wrapper = inner?.parentElement;
+      if (!inner || !wrapper) return;
+      const pad = computePad();
+      setWritingBottomPad(pad);
+      wrapper.style.transition = "none";
+      requestAnimationFrame(() => {
+        setExpandMaxH(inner.scrollHeight);
+        requestAnimationFrame(() => {
+          if (wrapper) wrapper.style.transition = "";
+        });
+      });
     };
-    const raf = requestAnimationFrame(measure);
-    window.addEventListener("resize", measure);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", measure);
-    };
-  }, [blogsExpanded, posts.length, getTerminalTop]);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [blogsExpanded, computePad]);
 
   useEffect(() => {
     if (!blogsExpanded || expandMaxH <= 0 || !pendingScrollRef.current) return;
@@ -1015,6 +1021,7 @@ export function InteractiveLayout({
 
             {/* Expanded blog list */}
             <div
+              data-expand-wrapper
               className="overflow-hidden"
               style={{
                 maxHeight: `${expandMaxH}px`,
@@ -1046,13 +1053,10 @@ export function InteractiveLayout({
                   );
                 })}
 
-                <BearBalloonGraphic color={theme.textMuted} isDark={theme.isDark} />
+                <BearBalloonGraphic color={theme.textMuted} isDark={theme.isDark} extraPad={writingBottomPad} />
               </div>
             </div>
             </div>
-            {blogsExpanded && writingBottomPad > 0 && (
-              <div aria-hidden="true" style={{ height: `${writingBottomPad}px` }} />
-            )}
           </section>
 
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
@@ -1124,9 +1128,14 @@ function MobileDetail({ open, children }: { open: boolean; children: React.React
   );
 }
 
-function BearBalloonGraphic({ color, isDark }: { color: string; isDark: boolean }) {
+function BearBalloonGraphic({ color, isDark, extraPad = 0 }: { color: string; isDark: boolean; extraPad?: number }) {
+  const basePad = 48;
+  const half = extraPad / 2;
   return (
-    <div className="flex flex-col items-center py-12 select-none">
+    <div
+      className="flex flex-col items-center justify-center select-none"
+      style={{ paddingTop: basePad + half, paddingBottom: basePad + half }}
+    >
       <img
         src="/images/bear-balloon.png"
         alt="Teddy bear watching a balloon float away"

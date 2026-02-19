@@ -33,6 +33,24 @@ const THEME_OPTIONS: ThemeOption[] = [
   { id: "midnight", label: "Midnight" },
 ];
 
+function getHeaderTint(themeMode: string, isDark: boolean): string {
+  switch (themeMode) {
+    case "light":
+      return "rgba(250,250,250,0.62)";
+    case "warm":
+      return "rgba(245,240,235,0.62)";
+    case "dark-gray":
+      return "rgba(24,24,27,0.58)";
+    case "dark-blue":
+      return "rgba(15,23,42,0.56)";
+    case "midnight":
+      return "rgba(2,6,23,0.52)";
+    case "auto":
+    default:
+      return isDark ? "rgba(2,6,23,0.52)" : "rgba(250,250,250,0.62)";
+  }
+}
+
 export function BlogPostClient({
   post,
   headings,
@@ -135,8 +153,12 @@ export function BlogPostClient({
       `}</style>
       <div className="max-w-3xl relative">
         <div
-          className="sticky top-0 z-40 -mt-14 mb-14 -mx-8 sm:-mx-14 lg:-mx-20 px-8 sm:px-14 lg:px-20 transition-colors duration-300"
-          style={{ backgroundColor: "var(--theme-bg)" }}
+          className="sticky top-0 z-40 -mt-14 mb-14 -mx-10 sm:-mx-16 lg:-mx-24 px-10 sm:px-16 lg:px-24 transition-colors duration-300"
+          style={{
+            backgroundColor: getHeaderTint(themeMode, theme.isDark),
+            backdropFilter: "blur(18px) saturate(1.6)",
+            WebkitBackdropFilter: "blur(18px) saturate(1.6)",
+          }}
         >
           <div className="max-w-3xl mx-auto">
             <div className="relative min-h-6 py-3">

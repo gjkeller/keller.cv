@@ -73,7 +73,7 @@ export function BlogShell({ children, wide }: { children: React.ReactNode; wide?
           transform: translateY(0);
         }
       `}</style>
-      <div className={`mx-auto px-8 sm:px-14 lg:px-20 pt-14 sm:pt-20 pb-7 sm:pb-9 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
+      <div className={`mx-auto px-10 sm:px-16 lg:px-24 pt-14 sm:pt-20 pb-7 sm:pb-9 ${wide ? "max-w-6xl" : "max-w-3xl"}`}>
         {children}
 
         {/* Footer */}

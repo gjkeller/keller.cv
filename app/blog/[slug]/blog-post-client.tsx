@@ -71,6 +71,7 @@ export function BlogPostClient({
   });
 
   const hasToc = headings && headings.length > 0;
+  const isAiAssistedHero = post.image?.includes("/images/blog/ai-assisted-swe-2026/og-cover.png");
 
   const headerText = theme.text;
   const headerMuted = theme.textMuted;
@@ -227,7 +228,11 @@ export function BlogPostClient({
         </div>
         {/* Hero image */}
         {post.image && (
-          <div className="mt-2 mb-8 mx-auto max-w-[22.5rem] rounded-lg overflow-hidden">
+          <div
+            className={`mt-2 mb-8 mx-auto rounded-lg overflow-hidden ${
+              isAiAssistedHero ? "max-w-[45rem]" : "max-w-[22.5rem]"
+            }`}
+          >
             <Image
               src={post.image}
               alt={post.title}

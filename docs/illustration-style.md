@@ -63,6 +63,19 @@ leave breathing room around the focal action.
 - **Scene**: Bear in red hat + blue coat, seated at a desk, frantically coding at a computer with a steaming coffee cup nearby.
 - **Concept reasoning**: Represents the rapid, caffeinated shipping pace of the build session while aligning with the new storybook-inspired character system.
 
+### "AI-Assisted Software Engineering in 2026" whiteboard variant
+- **Working image chosen by hand**: `~/Downloads/Pasted Graphic.png`
+- **Scene**: Bear teaching in front of a whiteboard/easel with simple code and flowchart marks.
+- **Use case**: Preferred reference for the whiteboard/teaching pose because it preserves the same watercolor-and-ink feel as the first blog bear.
+
+#### Saved Prompt
+
+Use this exact prompt when regenerating the whiteboard/teaching bear:
+
+```
+Create the same bear-teaching-at-a-whiteboard illustration in the exact style of the first reference image. Match the first bear image very closely: storybook watercolor-and-ink, Paddington-inspired teddy bear, warm tan fur, red floppy hat, blue duffle coat, soft watercolor fills, visible brush texture, pencil-and-ink sketch lines, handmade painted look, gentle outlines, expressive face. The bear is standing beside a wooden easel or whiteboard, teaching software engineering concepts with simple code and flowchart marks. IMPORTANT: place the full illustration on a plain clean off-white paper background with no checkerboard, no transparency effect, no pattern, no shadow backdrop, no extra scene beyond the bear and easel. Keep the composition simple so the subject is easy to cut out later. No logos, no watermark, no extra text outside the whiteboard marks.
+```
+
 ## Concept Guidelines
 
 Each blog post's OG image should:

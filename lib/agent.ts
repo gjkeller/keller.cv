@@ -42,7 +42,7 @@ function buildContext(): string {
 
   // Hackathons from the website
   if (hackathons.length) {
-    sections.push("\n## Hackathon Projects");
+    sections.push("\n## Projects");
     for (const h of hackathons) {
       sections.push(`### ${h.project} — ${h.name}, ${h.prize}`);
       if (h.url) sections.push(h.url);

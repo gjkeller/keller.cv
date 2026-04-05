@@ -6,7 +6,7 @@ description: Growth strategy & sales for UT's largest CS org
 url: https://texasacm.org
 image: /images/texasacm.png
 current: true
-order: 5
+order: 3
 ---
 # Texas ACM ![Texas ACM](/images/texasacm.png)
 

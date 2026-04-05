@@ -35,10 +35,11 @@ May 2025 - August 2025
 - Selected as MVP of software engineering interns (1/10) and 1/2 projects selected to present at symposium
 
 ### GridMatrix (Logistics Analytics Startup) - Software Engineering Intern
-March 2025 - Current
+March 2025 - January 2026
 
 - Sped up client onboarding by 60% by recreating internal CLI tool as a client-facing React SPA using Node.js, Zod, DynamoDB, and AWS S3, reducing errors by 30% through validation and version history
 - Cut employee onboarding time by est. 30% by writing onboarding and system architecture documentation
+- Left to go all in on Agent Operations Lab
 
 ### Prelude (Clinical Trial Software) - Software Engineering Intern
 August 2022 - May 2023
@@ -50,13 +51,23 @@ August 2022 - May 2023
 
 ## Projects
 
-### Astro Doodle (HackTX 2025; awarded $4,000 best overall prize) - Frontend Lead
+### Agent Operations Lab - Cofounder
+January 2026 - Present
+
+- Building enterprise tooling for agentic code ownership — helping teams manage, review, and govern AI-generated code at scale
+
+### Vibe Coding Purity Test - Creator
+2026
+
+- Built vibecodingpuritytest.com — a viral quiz with 100 questions, anonymous aggregate analytics, Next.js and DynamoDB
+
+### Astro Doodle (HackTX Fall 2025; 1st place) - Frontend Lead
 October 2025
 
 - Built a 2D browser game in TypeScript with Phaser 3.0, implementing full gameplay logic, enabling collision and physics, and a provider for gesture recognition using OpenCV and the $Q Recognizer algorithm
 - Prototyped the UI and marketing materials in Figma and integrated open-source sprite assets from Kenney.nl
 
-### The Beatbox (RecordHacks 2025; awarded highest value prize) - Software Lead
+### The Beatbox (HackTX Spring 2025; finalist) - Software Lead
 March 2025
 
 - Wrote C++ ESP32 firmware to use addressable LEDs and speakers; reverse-engineered proprietary game API

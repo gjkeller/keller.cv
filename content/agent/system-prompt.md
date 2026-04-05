@@ -60,11 +60,11 @@ About yourself (share if asked):
 
 About the website (share if asked):
 - keller.cv is Gabe's personal website. Built with Next.js 15, React 19, TypeScript, and Tailwind CSS. Hosted on Vercel.
-- The entire site is a single-page layout with a left panel (bio, work, hackathons, blog) and a right panel (interactive terminal). On mobile, the terminal overlays the content.
+- The entire site is a single-page layout with a left panel (bio, work, projects, blog) and a right panel (interactive terminal). On mobile, the terminal overlays the content.
 - The terminal is a fully custom React component with a virtual filesystem. Users can run commands like ls, cat, cd, open, help, theme, and agent. It simulates a real shell experience.
 - The terminal has multiple color themes users can switch between.
 - Blog posts are written in MDX and rendered with next-mdx-remote.
-- Work experience, hackathon wins, and project details are stored as markdown files in a content directory and loaded at build time.
+- Work experience, projects, and hackathon details are stored as markdown files in a content directory and loaded at build time.
 - The site also exposes /llms.txt for LLM-friendly content, /sitemap.xml, and /robots.txt.
 - The domain "keller.cv" uses the .cv TLD (Cape Verde) -- Gabe grabbed it because his last name is Keller and CV means curriculum vitae. Pretty slick domain hack.
 

@@ -1,6 +1,6 @@
 # Gabriel Keller - LinkedIn Profile
 
-**Co-founder of Agent Operations Lab | Cursor Campus Lead | CS @ UT Austin**
+**Incoming SWE Intern @ Nominal | Co-founder of Agent Operations Lab | Cursor Campus Lead | CS @ UT Austin**
 
 Austin, Texas, United States | linkedin.com/in/gjkeller
 
@@ -10,7 +10,7 @@ Austin, Texas, United States | linkedin.com/in/gjkeller
 
 I started with Minecraft plugins. Now I'm building infra for long-running multi-agent systems.
 
-I'm the cofounder of Agent Operations Lab, focused on reinventing agentic infrastructure. I'm also a Cursor Campus Lead, running community events around Austin.
+I'm the cofounder of Agent Operations Lab, building enterprise tooling for agentic code ownership. I'm also a Cursor Campus Lead, growing Austin adoption and running Euphony, UT's biweekly builder meetup.
 
 If you're building durable AI tooling, want to set up an event in Austin, or just chat, reach out.
 
@@ -22,7 +22,7 @@ If you're building durable AI tooling, want to set up an event in Austin, or jus
 **Agent Operations Lab**
 Jan 2026 - Present
 
-Reinventing the way we invent agents.
+Building enterprise tooling for agentic code ownership — helping teams manage, review, and govern the code that AI agents produce at scale.
 
 ### Software Engineering Intern
 **Nominal** · Internship
@@ -39,10 +39,10 @@ In charge of community programming for Cursor at UT
 
 ### Software Engineering Intern
 **GridMatrix**
-Mar 2025 - Present
+Mar 2025 - Jan 2026
 Austin, Texas, United States
 
-Creating a full stack client dashboard for GridMatrix's infrastructure analytics AI platform. Skills: React.js, Amazon Web Services (AWS)
+Created a full stack client dashboard for GridMatrix's infrastructure analytics AI platform. Left to go all in on Agent Operations Lab. Skills: React.js, Amazon Web Services (AWS)
 
 ### Texas ACM
 **The University of Texas at Austin**
@@ -69,7 +69,7 @@ Sep 2023 - Apr 2024
 **BS, Computer Science**
 Minors in Entrepreneurship and Computational Biology
 
-Activities and societies: Texas Association for Computing Machinery (Vice President), Cursor @ UT Austin (Founder), 2x hackathon winner
+Activities and societies: Texas Association for Computing Machinery (Vice President), Cursor @ UT Austin (Founder), hackathon winner and finalist
 
 ### Liberal Arts & Science Academy
 **High School**

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
 import { useTheme } from "@/lib/theme-context";
 import { getCalApi } from "@calcom/embed-react";
+import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
 import { Terminal } from "./terminal";
 import { renderMarkdown, type MdStyles } from "@/lib/render-md";
@@ -256,13 +257,8 @@ export function InteractiveLayout({
   const clickKeyRef = useRef<string | null>(null);
   const singleClickCountRef = useRef(0);
   const writingHeadingRef = useRef<HTMLDivElement | null>(null);
-  const writingContentRef = useRef<HTMLDivElement | null>(null);
-  const expandInnerRef = useRef<HTMLDivElement | null>(null);
   const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
-  const wasExpandedRef = useRef(initialSectionIntent === "blog");
-  const pendingScrollRef = useRef<ScrollBehavior | null>(null);
-  const [expandMaxH, setExpandMaxH] = useState(0);
-  const [writingBottomPad, setWritingBottomPad] = useState(0);
+  const pendingScrollRef = useRef<"smooth" | "instant" | null>(null);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
   const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
   useEffect(() => {
@@ -625,17 +621,20 @@ export function InteractiveLayout({
   }, []);
 
   const scrollToWriting = useCallback((behavior: ScrollBehavior = "smooth") => {
-    const run = () => {
-      const heading = writingHeadingRef.current;
-      if (!heading) return;
-      const desiredTop = getTerminalTop();
-      const currentTop = heading.getBoundingClientRect().top;
-      const targetY = window.scrollY + currentTop - desiredTop;
-      window.scrollTo({ top: Math.max(0, targetY), behavior });
-    };
-    if (behavior === "instant") run();
-    else requestAnimationFrame(run);
+    const heading = writingHeadingRef.current;
+    if (!heading) return;
+    const desiredTop = getTerminalTop();
+    const currentTop = heading.getBoundingClientRect().top;
+    const targetY = window.scrollY + currentTop - desiredTop;
+    window.scrollTo({ top: Math.max(0, targetY), behavior });
   }, [getTerminalTop]);
+
+  const handleCollapsibleAnimEnd = useCallback(() => {
+    const behavior = pendingScrollRef.current;
+    if (!behavior) return;
+    pendingScrollRef.current = null;
+    scrollToWriting(behavior);
+  }, [scrollToWriting]);
 
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
@@ -656,40 +655,13 @@ export function InteractiveLayout({
     }
   }, [blogsExpanded]);
 
-  const didInitialBlogLayout = useRef(false);
-  useLayoutEffect(() => {
-    if (initialSectionIntent !== "blog" || didInitialBlogLayout.current) return;
-    didInitialBlogLayout.current = true;
-
-    const inner = expandInnerRef.current;
-    const wrapper = inner?.parentElement;
-    if (!inner || !wrapper) return;
-
-    const h = inner.scrollHeight;
-    wrapper.style.transition = "none";
-    wrapper.style.maxHeight = `${h}px`;
-    wrapper.style.opacity = "1";
-    wrapper.getBoundingClientRect();
-    setExpandMaxH(h);
-
-    const content = writingContentRef.current;
-    const footer = document.querySelector("footer");
-    if (content && footer) {
-      const contentBase = content.offsetHeight - wrapper.offsetHeight + h;
-      const footerH = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
-      const termTop = getTerminalTop();
-      const pad = Math.max(0, window.innerHeight - termTop - contentBase - footerH - 80);
-      setWritingBottomPad(pad);
-      wrapper.style.maxHeight = `${h + pad}px`;
-      wrapper.getBoundingClientRect();
-      setExpandMaxH(h + pad);
-    }
-
-    scrollToWriting("instant");
-
-    requestAnimationFrame(() => {
-      wrapper.style.transition = "";
-    });
+  // Direct /blog navigation: scroll instantly once the first paint is done
+  const didInitialScroll = useRef(false);
+  useEffect(() => {
+    if (initialSectionIntent !== "blog" || didInitialScroll.current) return;
+    didInitialScroll.current = true;
+    // Use rAF to let Radix render the open content before we scroll
+    requestAnimationFrame(() => scrollToWriting("instant"));
   }, [initialSectionIntent, scrollToWriting]);
 
   useEffect(() => {
@@ -703,83 +675,7 @@ export function InteractiveLayout({
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [scrollToWriting]);
-
-  const computePad = useCallback(() => {
-    const content = writingContentRef.current;
-    const inner = expandInnerRef.current;
-    const footer = document.querySelector("footer");
-    if (!content || !inner || !footer) return 0;
-    const expandWrapper = inner.parentElement!;
-    const contentBase = content.offsetHeight - expandWrapper.offsetHeight;
-    const baseInnerH = inner.scrollHeight;
-    const naturalHeight = contentBase + baseInnerH;
-    const footerHeight = footer.offsetHeight + parseFloat(getComputedStyle(footer).marginTop || "0");
-    const scrollTargetOffset = getTerminalTop();
-    const available = window.innerHeight - scrollTargetOffset;
-    return Math.max(0, available - naturalHeight - footerHeight - 80);
-  }, [getTerminalTop]);
-
-  useEffect(() => {
-    const inner = expandInnerRef.current;
-    const wrapper = inner?.parentElement;
-    if (!inner || !wrapper) return;
-
-    if (blogsExpanded) {
-      const pad = computePad();
-      setWritingBottomPad(pad);
-      requestAnimationFrame(() => {
-        setExpandMaxH(inner.scrollHeight);
-      });
-      wasExpandedRef.current = true;
-    } else if (wasExpandedRef.current) {
-      setWritingBottomPad(0);
-      const h = inner.scrollHeight;
-      setExpandMaxH(h);
-      requestAnimationFrame(() => {
-        wrapper.getBoundingClientRect();
-        setExpandMaxH(0);
-      });
-      wasExpandedRef.current = false;
-    }
-  }, [blogsExpanded, computePad]);
-
-  useEffect(() => {
-    if (!blogsExpanded) return;
-    const handleResize = () => {
-      const inner = expandInnerRef.current;
-      const wrapper = inner?.parentElement;
-      if (!inner || !wrapper) return;
-      const pad = computePad();
-      setWritingBottomPad(pad);
-      wrapper.style.transition = "none";
-      requestAnimationFrame(() => {
-        setExpandMaxH(inner.scrollHeight);
-        requestAnimationFrame(() => {
-          if (wrapper) wrapper.style.transition = "";
-        });
-      });
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [blogsExpanded, computePad]);
-
-  useEffect(() => {
-    if (!blogsExpanded || expandMaxH <= 0 || !pendingScrollRef.current) return;
-    const id = window.setTimeout(() => {
-      const behavior = pendingScrollRef.current;
-      if (!behavior) return;
-      pendingScrollRef.current = null;
-      scrollToWriting(behavior);
-      if (behavior === "instant") {
-        const wrapper = expandInnerRef.current?.parentElement;
-        if (wrapper) {
-          requestAnimationFrame(() => { wrapper.style.transition = ""; });
-        }
-      }
-    }, 80);
-    return () => window.clearTimeout(id);
-  }, [blogsExpanded, expandMaxH, writingBottomPad, scrollToWriting]);
+  }, []);
 
   return (
     <main
@@ -944,8 +840,8 @@ export function InteractiveLayout({
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
-          {/* Hackathons */}
-          <Section title="Hackathons" theme={theme}>
+          {/* Projects */}
+          <Section title="Projects" theme={theme}>
             {hackathons.map((win) => {
               const key = `hackathon-${win.name}`;
               const isMobileOpen = mobileExpanded === key;
@@ -969,7 +865,7 @@ export function InteractiveLayout({
                   </button>
                   <MobileDetail open={isMobileOpen}>
                     <div className="text-sm leading-relaxed">{renderMarkdown(win.detail, mobileMdStyles)}</div>
-                    <a href={win.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">View on Devpost &rarr;</a>
+                    <a href={win.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Visit &rarr;</a>
                   </MobileDetail>
                 </div>
               );
@@ -979,8 +875,8 @@ export function InteractiveLayout({
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
           {/* Writing */}
+          <CollapsiblePrimitive.Root open={blogsExpanded} onOpenChange={setBlogsExpanded} asChild>
           <section>
-            <div ref={writingContentRef}>
             <div ref={writingHeadingRef} className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
               <button
@@ -1019,17 +915,12 @@ export function InteractiveLayout({
               </div>
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
 
-            {/* Expanded blog list */}
-            <div
-              data-expand-wrapper
-              className="overflow-hidden"
-              style={{
-                maxHeight: `${expandMaxH}px`,
-                opacity: blogsExpanded ? 1 : 0,
-                transition: "max-height 400ms cubic-bezier(0.22,1,0.36,1), opacity 300ms ease",
-              }}
+            {/* Expanded blog list — Radix Collapsible handles height animation */}
+            <CollapsiblePrimitive.Content
+              onAnimationEnd={handleCollapsibleAnimEnd}
+              className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up"
             >
-              <div ref={expandInnerRef}>
+              <div>
                 {posts.slice(previewPosts.length).map((post) => {
                   const key = `post-${post.slug}`;
                   const isMobileOpen = mobileExpanded === key;
@@ -1053,11 +944,11 @@ export function InteractiveLayout({
                   );
                 })}
 
-                <BearBalloonGraphic color={theme.textMuted} isDark={theme.isDark} extraPad={writingBottomPad} />
+                <BearBalloonGraphic color={theme.textMuted} isDark={theme.isDark} />
               </div>
-            </div>
-            </div>
+            </CollapsiblePrimitive.Content>
           </section>
+          </CollapsiblePrimitive.Root>
 
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
             <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>
@@ -1128,13 +1019,10 @@ function MobileDetail({ open, children }: { open: boolean; children: React.React
   );
 }
 
-function BearBalloonGraphic({ color, isDark, extraPad = 0 }: { color: string; isDark: boolean; extraPad?: number }) {
-  const basePad = 48;
-  const half = extraPad / 2;
+function BearBalloonGraphic({ color, isDark }: { color: string; isDark: boolean }) {
   return (
     <div
-      className="flex flex-col items-center justify-center select-none"
-      style={{ paddingTop: basePad + half, paddingBottom: basePad + half }}
+      className="flex flex-col items-center justify-center select-none py-12"
     >
       <img
         src="/images/bear-balloon.png"

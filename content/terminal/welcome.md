@@ -1,12 +1,12 @@
 # Gabriel Keller
 
 CS @ UT Austin
-Building agent infrastructure at AgentOps
+Building agent infrastructure
 
 Currently:
+  → Incoming SWE Intern @ Nominal
   → Cofounder @ Agent Operations Lab
   → Campus Lead @ Cursor
-  → SWE Intern @ GridMatrix
   → VP @ Texas ACM
 
 Type 'help' for commands, or click something on the left.

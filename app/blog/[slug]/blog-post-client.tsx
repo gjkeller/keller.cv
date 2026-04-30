@@ -334,8 +334,9 @@ export function BlogPostClient({
         aria-label="Jump to top"
         aria-hidden={!showJumpTop}
         tabIndex={showJumpTop ? 0 : -1}
-        className="blog-skeuo-btn fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 h-10 w-10 rounded-full inline-flex items-center justify-center"
+        className="blog-skeuo-btn bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 h-10 w-10 rounded-full inline-flex items-center justify-center"
         style={{
+          position: "fixed",
           color: theme.text,
           backgroundColor: theme.bg,
           opacity: showJumpTop ? 1 : 0,

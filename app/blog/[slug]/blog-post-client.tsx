@@ -338,7 +338,6 @@ export function BlogPostClient({
         style={{
           position: "fixed",
           color: theme.text,
-          backgroundColor: theme.bg,
           opacity: showJumpTop ? 1 : 0,
           transform: showJumpTop ? "translateY(0)" : "translateY(8px)",
           pointerEvents: showJumpTop ? "auto" : "none",

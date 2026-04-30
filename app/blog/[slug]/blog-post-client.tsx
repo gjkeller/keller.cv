@@ -62,6 +62,7 @@ export function BlogPostClient({
 }) {
   const { theme, themeMode, setThemeMode } = useTheme();
   const [headerStuck, setHeaderStuck] = useState(false);
+  const [showJumpTop, setShowJumpTop] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
 
   const formattedDate = new Date(post.date).toLocaleDateString("en-US", {
@@ -83,16 +84,28 @@ export function BlogPostClient({
   };
 
   useEffect(() => {
-    const updateStickyState = () => {
-      setHeaderStuck(window.scrollY > 2);
+    const updateScrollState = () => {
+      const y = window.scrollY;
+      setHeaderStuck(y > 2);
+      setShowJumpTop(y > 200);
     };
 
-    updateStickyState();
-    window.addEventListener("scroll", updateStickyState, { passive: true });
+    updateScrollState();
+    window.addEventListener("scroll", updateScrollState, { passive: true });
     return () => {
-      window.removeEventListener("scroll", updateStickyState);
+      window.removeEventListener("scroll", updateScrollState);
     };
   }, []);
+
+  const handleJumpToTop = () => {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({
+      top: 0,
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
+  };
 
   return (
     <BlogShell>
@@ -314,6 +327,53 @@ export function BlogPostClient({
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={handleJumpToTop}
+        aria-label="Jump to top"
+        aria-hidden={!showJumpTop}
+        tabIndex={showJumpTop ? 0 : -1}
+        className="blog-skeuo-btn fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 h-10 w-10 rounded-full inline-flex items-center justify-center"
+        style={{
+          color: theme.text,
+          backgroundColor: theme.bg,
+          opacity: showJumpTop ? 1 : 0,
+          transform: showJumpTop ? "translateY(0)" : "translateY(8px)",
+          pointerEvents: showJumpTop ? "auto" : "none",
+          transition:
+            "opacity 200ms ease, transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease, border-color 200ms ease",
+          ["--base-bg" as string]: theme.bg,
+          ["--base-border" as string]: theme.isDark
+            ? "rgba(255,255,255,0.18)"
+            : "rgba(15,20,25,0.2)",
+          ["--hover-bg" as string]: theme.cardHoverBg,
+          ["--hover-border" as string]: theme.cardHoverBorder,
+          ["--hover-shadow" as string]: theme.cardShadow,
+          ["--active-shadow" as string]: theme.cardActiveShadow,
+          ["--gloss-color" as string]: theme.isDark
+            ? "rgba(255,255,255,0.08)"
+            : "rgba(255,255,255,0.3)",
+        }}
+        onMouseMove={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          event.currentTarget.style.setProperty("--sx", `${event.clientX - rect.left}px`);
+          event.currentTarget.style.setProperty("--sy", `${event.clientY - rect.top}px`);
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="18 15 12 9 6 15" />
+        </svg>
+      </button>
     </BlogShell>
   );
 }

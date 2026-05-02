@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://keller.cv"),
   openGraph: {
     title: "Gabriel Keller",
-    description: "CS @ UT Austin · Building agent infrastructure",
+    description: "Building agent infrastructure.",
     url: "https://keller.cv",
     siteName: "Gabriel Keller",
     locale: "en_US",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     creator: "@gabrieljkeller",
   },
   alternates: { canonical: "https://keller.cv" },
-  icons: { icon: "/favicon.png" },
+  // Icons are provided via Next.js file conventions: app/icon.png + app/apple-icon.png.
 };
 
 export default function RootLayout({

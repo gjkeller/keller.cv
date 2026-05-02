@@ -1,0 +1,198 @@
+---
+title: "Markdown showcase: every feature this blog renders"
+description: "A reference post that exercises every Markdown feature the blog currently supports — headings, code blocks, callouts, tables, task lists, and more."
+date: "2026-05-02"
+author: "Gabriel Keller"
+tags: ["meta", "markdown", "design", "reference"]
+draft: true
+---
+
+This post is a living reference for everything Markdown can do on `keller.cv`. If a feature renders here, it'll render in any other post. If it doesn't render here, it's not supported yet — file an issue.
+
+The blog now leans into one accent color: the same blue square that's the favicon and the endcap on every post. That blue threads through links, blockquote rules, table headers, code-block language pills, and syntax highlighting. Switch themes from the header and you'll see the palette retune to fit, but the accent stays consistent.
+
+## Headings and emphasis
+
+The article shell renders `#` as the post title (set in frontmatter), so prose starts at `##`.
+
+### Subheadings
+
+#### Smaller subheadings
+
+Inline emphasis is straightforward: *italic*, **bold**, ***both at once***, and ~~strikethrough~~ from GitHub-flavored Markdown. You can drop a horizontal rule between sections like this:
+
+---
+
+Footnotes aren't enabled yet, but inline links work the way you'd expect: a [link to the homepage](/) inside a sentence, an external link to [next-mdx-remote](https://github.com/hashicorp/next-mdx-remote), and an autolink to `https://keller.cv/blog`.
+
+## Inline code and keyboard hints
+
+Wrap a token in backticks to get a chip: `pnpm install`, `useTheme()`, or a path like `app/blog/[slug]/page.tsx`. Inline code uses the theme's accent for both the chip background and the text, so it reads as "this is a thing you'd type" without screaming for attention. Long inline tokens like `getServerSideProps` wrap inside paragraphs without breaking the line metric.
+
+## Code blocks
+
+Code blocks use `rehype-highlight` for tokenization and the theme's syntax palette for color. The little pill in the corner is the language tag — try switching themes and watch it follow the accent.
+
+```ts
+type Theme = {
+  name: string;
+  accent: string;
+  isDark: boolean;
+};
+
+export function pickAccent(theme: Theme): string {
+  // Returns the favicon-blue tuned for the active theme.
+  return theme.isDark ? "#60A5FA" : "#2563EB";
+}
+```
+
+```tsx
+import { useTheme } from "@/lib/theme-context";
+
+export function Endcap() {
+  const { theme } = useTheme();
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        width: "0.72em",
+        height: "0.72em",
+        borderRadius: "0.1em",
+        backgroundColor: theme.accent,
+      }}
+    />
+  );
+}
+```
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Post:
+    slug: str
+    title: str
+    tags: tuple[str, ...] = ()
+
+    def is_meta(self) -> bool:
+        return "meta" in self.tags
+
+posts = [Post("markdown-showcase", "Markdown showcase", ("meta",))]
+print([p.slug for p in posts if p.is_meta()])
+```
+
+```bash
+# Build the site, then smoke-test the OG routes
+pnpm install --frozen-lockfile
+pnpm build
+pnpm smoke:og
+```
+
+```json
+{
+  "title": "Markdown showcase",
+  "tags": ["meta", "markdown", "design"],
+  "draft": false,
+  "readingTime": { "minutes": 4 }
+}
+```
+
+```css
+.blog-prose pre[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 0.55rem;
+  right: 0.85rem;
+  color: var(--theme-accent);
+  background-color: var(--theme-accent-soft);
+}
+```
+
+```diff
+- background-color: #1f2937;
+- color: #f9fafb;
++ background-color: var(--code-bg);
++ color: var(--theme-text);
+```
+
+A code block with no language tag still works — it just skips the pill:
+
+```
+$ ls content/blog
+ai-assisted-swe-2026.mdx
+building-keller-cv.mdx
+markdown-showcase.mdx
+```
+
+## Blockquotes
+
+Blockquotes use the accent for the rule and a soft accent fill for the body. They work for short asides:
+
+> The fix is documentation — but not the kind you write for humans. Agent-optimized docs.
+
+…and for stacked paragraphs:
+
+> Context windows degrade. The "smart zone" is somewhere around 40–60% utilization.
+>
+> The solution is counterintuitive: make the agent exit. Run it in a loop where each iteration starts fresh.
+
+You can put inline `code` and [links](https://keller.cv/blog) inside a quote and they pick up the accent the same way they would in body text.
+
+## Lists
+
+Bulleted lists handle the usual nesting:
+
+- The build runs on Next.js 15 with the App Router.
+- MDX is parsed by `next-mdx-remote/rsc` at request time.
+  - Then `remark-gfm` adds tables, strikethrough, and task lists.
+  - Then `rehype-highlight` adds the `hljs-*` classes that the syntax palette colors.
+- Themes are CSS custom properties; nothing here is hardcoded per mode.
+
+Numbered lists hold their counter through paragraphs and code blocks:
+
+1. Read the frontmatter from `content/blog/<slug>.mdx`.
+2. Slice off the body and render it through MDX:
+
+   ```ts
+   const post = getBlogPost(slug);
+   return <MDXContent content={post.content} />;
+   ```
+
+3. Extract `##` and `###` headings for the inline table of contents.
+
+GitHub-flavored task lists also render — checked items pick up the accent:
+
+- [x] Theme-aware code blocks
+- [x] Accent-tinted blockquotes and tables
+- [x] Per-language pill on every fenced block
+- [ ] Mermaid diagrams
+- [ ] Math (`$...$` and `$$...$$`)
+
+## Tables
+
+GFM tables get a rounded outer border, an accent-tinted header row, and zebra-striped rows that derive their tint from the theme background:
+
+| Theme       | Accent    | Code surface | Inline chip            |
+| ----------- | --------- | ------------ | ---------------------- |
+| Light       | `#2563EB` | `#F1F5FB`    | `rgba(37,99,235,.08)`  |
+| Warm        | `#2563EB` | `#EFE9E2`    | `rgba(37,99,235,.07)`  |
+| Dark blue   | `#60A5FA` | `#172033`    | `rgba(96,165,250,.14)` |
+| Dark gray   | `#60A5FA` | `#1F1F23`    | `rgba(96,165,250,.12)` |
+| Midnight    | `#60A5FA` | `#0A1429`    | `rgba(96,165,250,.14)` |
+
+Cell content can include `code`, *emphasis*, and [links](https://github.com/gjkeller/keller.cv) without breaking the layout.
+
+## Images
+
+Standalone images use the existing `ExpandableImage` component — click to open in a lightbox. The `alt` text doubles as the figcaption underneath:
+
+![The favicon and endcap that the blog palette follows.](/icon.png)
+
+Images that live inside paragraphs render inline the same way they always did; the styling here only adjusts the figure spacing and caption typography.
+
+## Putting it together
+
+If you're skimming for "what does it look like under each theme?" — open the theme menu in the header, cycle through Light → Warm → Dark Blue → Dark Gray → Midnight, and watch the same content restyle. Code blocks, callouts, and tables should all read cleanly at every step.
+
+That's the whole point of this post: one accent, every theme.

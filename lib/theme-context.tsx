@@ -49,6 +49,25 @@ function applyCssVars(t: Theme) {
   s.setProperty("--theme-card-hover-bg", t.cardHoverBg);
   s.setProperty("--theme-card-hover-border", t.cardHoverBorder);
   s.setProperty("--theme-is-dark", t.isDark ? "1" : "0");
+  // Blue accent + code surfaces. These power the blog prose styles in
+  // app/globals.css so MDX content reacts to theme changes without
+  // re-rendering the React tree.
+  s.setProperty("--theme-accent", t.accent);
+  s.setProperty("--theme-accent-soft", t.accentSoft);
+  s.setProperty("--code-bg", t.codeBg);
+  s.setProperty("--code-border", t.codeBorder);
+  s.setProperty("--inline-code-bg", t.inlineCodeBg);
+  s.setProperty("--inline-code-border", t.inlineCodeBorder);
+  s.setProperty("--inline-code-text", t.inlineCodeText);
+  s.setProperty("--syntax-keyword", t.syntaxKeyword);
+  s.setProperty("--syntax-string", t.syntaxString);
+  s.setProperty("--syntax-number", t.syntaxNumber);
+  s.setProperty("--syntax-comment", t.syntaxComment);
+  s.setProperty("--syntax-function", t.syntaxFunction);
+  s.setProperty("--syntax-class", t.syntaxClass);
+  s.setProperty("--syntax-operator", t.syntaxOperator);
+  s.setProperty("--syntax-punctuation", t.syntaxPunctuation);
+  s.setProperty("--syntax-tag", t.syntaxTag);
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

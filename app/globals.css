@@ -11,6 +11,25 @@
   --theme-card-hover-bg: #EEEEF0;
   --theme-card-hover-border: rgba(209,213,219,0.6);
   --theme-is-dark: 0;
+
+  /* Accent + code defaults; the ThemeProvider overrides these per theme.
+     Listed here so server-rendered MDX has sane colors before hydration. */
+  --theme-accent: #2563EB;
+  --theme-accent-soft: rgba(37,99,235,0.08);
+  --code-bg: #F1F5FB;
+  --code-border: #DBE5F4;
+  --inline-code-bg: rgba(37,99,235,0.08);
+  --inline-code-border: rgba(37,99,235,0.18);
+  --inline-code-text: #1D4ED8;
+  --syntax-keyword: #1D4ED8;
+  --syntax-string: #B45309;
+  --syntax-number: #B45309;
+  --syntax-comment: #94A3B8;
+  --syntax-function: #1E40AF;
+  --syntax-class: #0E7490;
+  --syntax-operator: #475569;
+  --syntax-punctuation: #64748B;
+  --syntax-tag: #1D4ED8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +42,23 @@
     --theme-card-hover-bg: #0F172A;
     --theme-card-hover-border: rgba(30,41,59,0.8);
     --theme-is-dark: 1;
+
+    --theme-accent: #60A5FA;
+    --theme-accent-soft: rgba(96,165,250,0.14);
+    --code-bg: #0A1429;
+    --code-border: #142036;
+    --inline-code-bg: rgba(96,165,250,0.14);
+    --inline-code-border: rgba(96,165,250,0.28);
+    --inline-code-text: #93C5FD;
+    --syntax-keyword: #60A5FA;
+    --syntax-string: #FBBF24;
+    --syntax-number: #FBBF24;
+    --syntax-comment: #475569;
+    --syntax-function: #93C5FD;
+    --syntax-class: #38BDF8;
+    --syntax-operator: #64748B;
+    --syntax-punctuation: #64748B;
+    --syntax-tag: #7DD3FC;
   }
 }
 
@@ -84,3 +120,342 @@ body {
   background-color: rgba(156,163,175,0.3);
   border-radius: 2px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Blog prose
+ *
+ * Theme-reactive Markdown styling. Everything here keys off CSS variables
+ * pushed by lib/theme-context.tsx, so switching themes restyles MDX without
+ * a re-render. Scoped to `.blog-prose` to avoid leaking into the rest of
+ * the app (terminal output, OG cards, etc.) which have their own conventions.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.blog-prose {
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Inline code chips — small accent-tinted pills inside paragraphs, lists, etc. */
+.blog-prose :not(pre) > code {
+  background-color: var(--inline-code-bg);
+  border: 1px solid var(--inline-code-border);
+  color: var(--inline-code-text);
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 0.86em;
+  font-weight: 500;
+  padding: 0.12em 0.42em;
+  border-radius: 4px;
+  white-space: break-spaces;
+}
+
+/* Code blocks — themed surface with a language label in the corner */
+.blog-prose pre {
+  position: relative;
+  background-color: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 12px;
+  margin: 1.75rem 0;
+  padding: 1.05rem 1.25rem;
+  overflow-x: auto;
+  color: var(--theme-text);
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.65;
+  /* Subtle inner highlight so the panel reads as raised on light themes
+     and gently lit on dark themes, matching the skeuomorphic card vibe. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.7 * (1 - var(--theme-is-dark)))),
+    inset 0 1px 0 rgba(255, 255, 255, calc(0.04 * var(--theme-is-dark)));
+}
+
+.blog-prose pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  display: block;
+  white-space: pre;
+}
+
+/* Code block controls — the language pill (always visible) and the copy
+ * button (revealed on hover/focus) live in the top-right corner. The pill
+ * matches the favicon's blue accent so every code block carries the same
+ * mark. Markup comes from components/blog/code-block.tsx. */
+.blog-prose pre .code-block-controls {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: none;
+}
+
+.blog-prose pre .code-lang-pill {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-accent);
+  background-color: var(--theme-accent-soft);
+  padding: 0.18em 0.55em;
+  border-radius: 999px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.blog-prose pre .code-copy-button {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--theme-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-1px);
+  transition:
+    opacity 140ms ease,
+    color 140ms ease,
+    transform 120ms ease;
+}
+
+.blog-prose pre:hover .code-copy-button,
+.blog-prose pre:focus-within .code-copy-button {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.blog-prose pre .code-copy-button:hover {
+  color: var(--theme-accent);
+}
+
+.blog-prose pre .code-copy-button:focus-visible {
+  outline: none;
+  color: var(--theme-accent);
+}
+
+.blog-prose pre .code-copy-button:active {
+  transform: scale(0.94);
+}
+
+/* "Copied" success state — keep it borderless; just swap the icon to the
+ * accent so the success cue reads without introducing a chip. */
+.blog-prose pre .code-block-controls[data-status="copied"] .code-copy-button {
+  opacity: 1;
+  transform: translateY(0);
+  color: var(--theme-accent);
+}
+
+/* Touch devices have no hover — keep the button visible so it's reachable. */
+@media (hover: none) {
+  .blog-prose pre .code-copy-button {
+    opacity: 0.65;
+    transform: translateY(0);
+  }
+}
+
+/* Blockquotes — quiet news-article style: a single muted vertical rule,
+ * indented body text in the dim color, no fill, no italics. The font-style
+ * + font-weight resets override @tailwindcss/typography's `.prose :where(
+ * blockquote)` defaults. */
+.blog-prose blockquote {
+  border-left: 2px solid var(--theme-border);
+  background-color: transparent;
+  border-radius: 0;
+  padding: 0.1em 0 0.1em 1.1em;
+  margin: 1.5em 0;
+  color: var(--theme-text-dim);
+  font-style: normal;
+  font-weight: 400;
+}
+.blog-prose blockquote :where(p) {
+  margin: 0;
+  color: inherit;
+  font-style: normal;
+  font-weight: inherit;
+}
+.blog-prose blockquote :where(p) + p {
+  margin-top: 0.6em;
+}
+
+/* Tables — quiet rounded outer border, header row tone matches the zebra
+ * stripe so the alternating fill reads as one continuous rhythm rather than
+ * a separate "header band". The accent stays out of the table on purpose. */
+.blog-prose table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 1.75em 0;
+  font-size: 0.92em;
+}
+.blog-prose thead {
+  background-color: color-mix(in oklab, var(--theme-bg), var(--theme-text) 3%);
+}
+.blog-prose thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--theme-text);
+  padding: 0.55em 0.9em;
+  border-bottom: 1px solid var(--theme-border);
+}
+.blog-prose tbody td {
+  padding: 0.55em 0.9em;
+  color: var(--theme-text-dim);
+  border-top: 1px solid var(--theme-border);
+}
+.blog-prose tbody tr:first-child td {
+  border-top: 0;
+}
+.blog-prose tbody tr:nth-child(even) {
+  background-color: color-mix(in oklab, var(--theme-bg), var(--theme-text) 3%);
+}
+
+/* Horizontal rules — quiet divider that always uses the theme border. */
+.blog-prose hr {
+  border: 0;
+  height: 1px;
+  background-color: var(--theme-border);
+  margin: 2.25em auto;
+  width: 100%;
+}
+
+/* Task list checkboxes (GFM) — accent the box without overriding layout. */
+.blog-prose ul:has(> li > input[type="checkbox"]) {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+.blog-prose ul:has(> li > input[type="checkbox"]) > li {
+  display: flex;
+  gap: 0.55em;
+  align-items: baseline;
+  padding-left: 0;
+}
+.blog-prose input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 0.95em;
+  height: 0.95em;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border);
+  background-color: var(--theme-bg);
+  position: relative;
+  top: 0.12em;
+  flex: 0 0 auto;
+}
+.blog-prose input[type="checkbox"]:checked {
+  background-color: var(--theme-accent);
+  border-color: var(--theme-accent);
+}
+.blog-prose input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(transparent, transparent),
+    linear-gradient(transparent, transparent);
+  /* Inline checkmark via SVG so we don't ship an asset. */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='M3 8.5l3.2 3.2L13 4.8'/></svg>");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* Image figcaption (alt text) — quiet caption under the picture. */
+.blog-prose figure > figcaption,
+.blog-prose figcaption {
+  font-size: 0.82rem;
+  color: var(--theme-text-muted);
+  text-align: center;
+  margin-top: 0.5em;
+  font-style: normal;
+}
+
+/* ── Syntax highlighting (highlight.js classes via rehype-highlight) ── */
+
+.blog-prose .hljs {
+  color: var(--theme-text);
+  background: transparent;
+}
+
+.blog-prose .hljs-comment,
+.blog-prose .hljs-quote,
+.blog-prose .hljs-meta {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.blog-prose .hljs-keyword,
+.blog-prose .hljs-selector-tag,
+.blog-prose .hljs-built_in,
+.blog-prose .hljs-name,
+.blog-prose .hljs-tag,
+.blog-prose .hljs-doctag,
+.blog-prose .hljs-section {
+  color: var(--syntax-keyword);
+}
+
+.blog-prose .hljs-string,
+.blog-prose .hljs-regexp,
+.blog-prose .hljs-link,
+.blog-prose .hljs-meta-string {
+  color: var(--syntax-string);
+}
+
+.blog-prose .hljs-number,
+.blog-prose .hljs-literal,
+.blog-prose .hljs-symbol,
+.blog-prose .hljs-bullet {
+  color: var(--syntax-number);
+}
+
+.blog-prose .hljs-title,
+.blog-prose .hljs-title.function_,
+.blog-prose .hljs-function .hljs-title {
+  color: var(--syntax-function);
+  font-weight: 500;
+}
+
+.blog-prose .hljs-class .hljs-title,
+.blog-prose .hljs-title.class_,
+.blog-prose .hljs-type {
+  color: var(--syntax-class);
+  font-weight: 500;
+}
+
+.blog-prose .hljs-attr,
+.blog-prose .hljs-attribute,
+.blog-prose .hljs-property {
+  color: var(--syntax-tag);
+}
+
+.blog-prose .hljs-variable,
+.blog-prose .hljs-template-variable,
+.blog-prose .hljs-params,
+.blog-prose .hljs-subst {
+  color: var(--theme-text);
+}
+
+.blog-prose .hljs-operator,
+.blog-prose .hljs-punctuation {
+  color: var(--syntax-operator);
+}
+
+.blog-prose .hljs-deletion {
+  color: #DC2626;
+  background-color: rgba(220,38,38,0.08);
+}
+.blog-prose .hljs-addition {
+  color: #15803D;
+  background-color: rgba(22,163,74,0.08);
+}
+.blog-prose .hljs-strong { font-weight: 600; }
+.blog-prose .hljs-emphasis { font-style: italic; }

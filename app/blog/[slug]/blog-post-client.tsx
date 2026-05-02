@@ -117,7 +117,7 @@ export function BlogPostClient({
           transition: color 140ms ease, text-decoration-color 140ms ease, opacity 140ms ease;
         }
         .blog-prose :where(a:not(.no-underline):hover) {
-          color: ${theme.isDark ? "#93c5fd" : "#1d4ed8"};
+          color: ${theme.accent};
           text-decoration-color: currentColor;
           opacity: 0.96;
         }
@@ -128,7 +128,7 @@ export function BlogPostClient({
           height: 0.72em;
           margin-left: 0.28em;
           border-radius: 0.1em;
-          background-color: ${theme.isDark ? "#60a5fa" : "#2563eb"};
+          background-color: ${theme.accent};
           vertical-align: -0.01em;
         }
         .blog-skeuo-btn {
@@ -279,17 +279,17 @@ export function BlogPostClient({
           style={{
             ["--tw-prose-body" as string]: theme.isDark ? "#a5b3c7" : "#7a828e",
             ["--tw-prose-headings" as string]: theme.text,
-            ["--tw-prose-links" as string]: theme.isDark ? "#60a5fa" : "#2563eb",
+            ["--tw-prose-links" as string]: theme.accent,
             ["--tw-prose-bold" as string]: theme.text,
             ["--tw-prose-counters" as string]: theme.textMuted,
             ["--tw-prose-bullets" as string]: theme.textMuted,
             ["--tw-prose-hr" as string]: theme.border,
             ["--tw-prose-quotes" as string]: theme.text,
-            ["--tw-prose-quote-borders" as string]: theme.border,
-            ["--tw-prose-code" as string]: theme.text,
-            ["--tw-prose-pre-bg" as string]: theme.isDark ? "#1e293b" : "#f1f5f9",
-            ["--tw-prose-pre-code" as string]: theme.isDark ? "#e2e8f0" : "#1e293b",
-            ["--tw-prose-th-borders" as string]: theme.border,
+            ["--tw-prose-quote-borders" as string]: theme.accent,
+            ["--tw-prose-code" as string]: theme.inlineCodeText,
+            ["--tw-prose-pre-bg" as string]: theme.codeBg,
+            ["--tw-prose-pre-code" as string]: theme.text,
+            ["--tw-prose-th-borders" as string]: theme.accent,
             ["--tw-prose-td-borders" as string]: theme.border,
           }}
         >

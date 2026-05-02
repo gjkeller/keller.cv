@@ -197,7 +197,7 @@ export function TableOfContents({ headings, theme }: Props) {
                 style={{
                   color: activeId === h.id ? theme.text : theme.textMuted,
                   fontWeight: activeId === h.id ? 500 : 400,
-                  borderLeft: `2px solid ${activeId === h.id ? (theme.isDark ? "#60a5fa" : "#2563eb") : "transparent"}`,
+                  borderLeft: `2px solid ${activeId === h.id ? theme.accent : "transparent"}`,
                   paddingLeft: h.level === 3 ? "1rem" : "0.5rem",
                 }}
               >

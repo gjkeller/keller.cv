@@ -59,7 +59,12 @@ export function ExpandableImage({
       </button>
 
       {caption && (
-        <figcaption className="mt-2 text-sm italic text-center text-gray-500">{caption}</figcaption>
+        <figcaption
+          className="mt-2 text-sm text-center"
+          style={{ color: "var(--theme-text-muted)" }}
+        >
+          {caption}
+        </figcaption>
       )}
 
       {isOpen && (

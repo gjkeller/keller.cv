@@ -2,6 +2,7 @@ import type { MDXComponents } from "mdx/types";
 import Link from "next/link";
 import { ReactNode } from "react";
 import { ExpandableImage } from "@/components/blog/expandable-image";
+import { CodeBlock } from "@/components/blog/code-block";
 
 function slugify(text: string): string {
   return text
@@ -89,49 +90,36 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     ol: ({ children }: { children?: ReactNode }) => <ol>{children}</ol>,
     li: ({ children }: { children?: ReactNode }) => <li>{children}</li>,
 
+    // Blockquote, pre, and code styling lives in app/globals.css under
+    // `.blog-prose` so it can react to the active theme via CSS variables
+    // (see lib/theme-context.tsx). The components here just forward children
+    // so MDX retains the right semantic structure for rehype-highlight and
+    // remark-gfm to layer on top.
     blockquote: ({ children }: { children?: ReactNode }) => (
-      <blockquote
-        style={{
-          borderLeft: "4px solid #3b82f6",
-          paddingLeft: "1.5rem",
-          margin: "1.5rem 0",
-          fontStyle: "italic",
-          color: "#6b7280",
-        }}
-      >
-        {children}
-      </blockquote>
+      <blockquote>{children}</blockquote>
     ),
 
-    pre: ({ children }: { children?: ReactNode }) => (
-      <pre
-        style={{
-          backgroundColor: "#1f2937",
-          color: "#f9fafb",
-          padding: "1.5rem",
-          borderRadius: "0.5rem",
-          overflow: "auto",
-          margin: "1.5rem 0",
-          fontSize: "0.875rem",
-        }}
-      >
-        {children}
-      </pre>
-    ),
+    pre: ({ children }: { children?: ReactNode }) => {
+      // rehype-highlight stamps `language-XXX` onto the inner <code>; lift
+      // it so the CodeBlock client wrapper can render the language pill and
+      // expose a hover-revealed copy button without re-walking the tree.
+      let language: string | undefined;
+      if (
+        children &&
+        typeof children === "object" &&
+        "props" in children &&
+        children.props &&
+        typeof (children.props as { className?: unknown }).className === "string"
+      ) {
+        const className = (children.props as { className: string }).className;
+        const match = className.match(/language-([a-z0-9+#.-]+)/i);
+        if (match) language = match[1];
+      }
+      return <CodeBlock language={language}>{children}</CodeBlock>;
+    },
 
-    code: ({ children }: { children?: ReactNode }) => (
-      <code
-        style={{
-          backgroundColor: "#f3f4f6",
-          padding: "0.25rem 0.5rem",
-          borderRadius: "0.25rem",
-          fontSize: "0.875rem",
-          fontFamily: "monospace",
-          color: "#dc2626",
-        }}
-      >
-        {children}
-      </code>
+    code: ({ children, ...props }: { children?: ReactNode; className?: string }) => (
+      <code {...props}>{children}</code>
     ),
 
     img: ({

@@ -58,6 +58,23 @@ const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer tra
 const DESKTOP_OPEN_HINT_MS = 1000;
 const DESKTOP_CLICK_DELAY_MS = 280;
 
+// Map pathname → document title. Used to keep the tab title in sync with
+// the URL bar whenever we mutate history directly (pushState/replaceState),
+// since Next.js only re-applies route metadata on real navigations.
+const TITLE_BY_PATH: Record<string, string> = {
+  "/": "Gabriel Keller",
+  "/call": "Book a call | Gabriel Keller",
+  "/blog": "Blog | Gabriel Keller",
+};
+
+function syncDocumentTitle(): void {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+  const title = TITLE_BY_PATH[window.location.pathname];
+  if (title && document.title !== title) {
+    document.title = title;
+  }
+}
+
 function toCalPath(calLink: string): string {
   const trimmed = calLink.trim();
   if (!trimmed) return "";
@@ -485,6 +502,7 @@ export function InteractiveLayout({
         "",
         nextUrl,
       );
+      syncDocumentTitle();
     },
     [],
   );
@@ -500,6 +518,7 @@ export function InteractiveLayout({
         "",
         "/",
       );
+      syncDocumentTitle();
     }
   }, []);
   const openCalModal = useCallback(async (namespace: "15m" | "30m", calLink: string, duration: 15 | 30) => {
@@ -645,6 +664,7 @@ export function InteractiveLayout({
       setBlogsExpanded(false);
       if (window.location.pathname === "/blog") {
         window.history.pushState({ section: "home" }, "", "/");
+        syncDocumentTitle();
       }
       return;
     }
@@ -652,6 +672,7 @@ export function InteractiveLayout({
     setBlogsExpanded(true);
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
+      syncDocumentTitle();
     }
   }, [blogsExpanded]);
 
@@ -672,6 +693,7 @@ export function InteractiveLayout({
       } else {
         setBlogsExpanded(false);
       }
+      syncDocumentTitle();
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);

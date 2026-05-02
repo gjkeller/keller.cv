@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: install (frozen lockfile, no scripts)
+        # ignore-scripts is set globally in ~/.npmrc on the dev machine; in CI
+        # we enforce it explicitly so a malicious postinstall can't run.
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: type-check
+        run: pnpm type-check
+
+      - name: lint
+        run: pnpm lint
+
+      - name: build
+        run: pnpm build
+
+      - name: smoke OG routes
+        run: pnpm smoke:og

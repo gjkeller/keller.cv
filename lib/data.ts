@@ -5,6 +5,9 @@ export interface SocialLink {
 
 export interface SiteData {
   name: string;
+  // Canonical handle used as the visual identity across OG cards and copy.
+  // Note: @gabrieljkeller on X, @gjkeller everywhere else.
+  handle: string;
   tagline: string;
   bio: string;
   socialLinks: SocialLink[];
@@ -14,6 +17,7 @@ export interface SiteData {
 
 export const siteData: SiteData = {
   name: "Gabriel Keller",
+  handle: "@gjkeller",
   tagline: "CS @ UT Austin · Building agent infrastructure",
   bio: "I'm a CS student at UT Austin and incoming SWE intern at Nominal. I started coding at 12 with Minecraft plugins and have been hooked ever since.",
   socialLinks: [

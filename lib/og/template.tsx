@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { siteData } from "@/lib/data";
 
 // All OG images share a 1200x630 canvas. Layout is built with flexbox plus
 // absolute positioning, which next/og (Satori) supports.
@@ -10,6 +11,22 @@ const KICKER = "#9ca3af";
 const CANVAS = "#ffffff";
 
 const FONT_GEIST = "Geist";
+
+// Inter-word gap as a fraction of the font size. Tuned to match Geist's
+// natural advance width for sentence-case text.
+const WORD_GAP_RATIO = 0.22;
+
+// Compensation applied to words that end with sentence punctuation. Satori
+// renders trailing whitespace inside the punctuated word's box and then
+// inserts another full-width space after it (vercel/satori#643), producing
+// a visible double gap. Shrinking the right margin on the punctuated word
+// cancels the overhang. Hyphens are intentionally NOT compensated because
+// they sit mid-word with no trailing whitespace.
+const PUNCT_OVERHANG_RATIO = 0.13;
+const TRAILING_PUNCT_RE = /[.,:;!?]$/;
+
+// Default kicker on blog cards mirrors the canonical handle.
+const BLOG_KICKER = `${siteData.handle}/blog`;
 
 type CanvasProps = {
   children: ReactElement | ReactElement[];
@@ -75,14 +92,16 @@ export function HandleOg({ handle, variant = "home" }: HandleOgProps): ReactElem
 
 export type BlogPostOgProps = {
   title: string;
-  // Optional kicker; defaults to the blog handle path.
+  // Optional kicker; defaults to the blog handle path (siteData.handle/blog).
   kicker?: string;
 };
 
 type TitleStyle = { fontSize: number; lineHeight: number; maxWidth: number };
 
 // Adaptive title sizing so short titles read large while longer titles still
-// fit comfortably in the card without crowding.
+// fit comfortably in the card without crowding. Thresholds assume mixed-case
+// sentence text in Geist; pathological all-caps or all-wide-glyph titles may
+// overflow at the largest size.
 export function blogTitleStyle(title: string): TitleStyle {
   if (title.length <= 18) return { fontSize: 108, lineHeight: 1, maxWidth: 984 };
   if (title.length <= 42) return { fontSize: 92, lineHeight: 1, maxWidth: 1008 };
@@ -93,7 +112,7 @@ export function blogTitleStyle(title: string): TitleStyle {
 // centered, no subtitle in the image (subtitle is moved to embed metadata).
 export function BlogPostOg({
   title,
-  kicker = "@gjkeller/blog",
+  kicker = BLOG_KICKER,
 }: BlogPostOgProps): ReactElement {
   const titleStyle = blogTitleStyle(title);
 
@@ -127,9 +146,9 @@ export function BlogPostOg({
         }}
       >
         {/* Render each word as its own flex item so Satori never has to
-            measure across a punctuated word (vercel/satori#643). Words
-            containing `.` or `-` get a measurably wider rendered box than
-            their glyphs, so we compensate with a tighter right margin. */}
+            measure across a punctuated word (vercel/satori#643). See
+            PUNCT_OVERHANG_RATIO above for why trailing punctuation gets
+            a tighter right margin. */}
         <div
           style={{
             display: "flex",
@@ -144,9 +163,11 @@ export function BlogPostOg({
         >
           {title.split(/\s+/).map((word, i, arr) => {
             const isLast = i === arr.length - 1;
-            const hasPunct = /[.\-]/.test(word);
-            const baseGap = titleStyle.fontSize * 0.22;
-            const compensation = hasPunct ? titleStyle.fontSize * 0.13 : 0;
+            const hasTrailingPunct = TRAILING_PUNCT_RE.test(word);
+            const baseGap = titleStyle.fontSize * WORD_GAP_RATIO;
+            const compensation = hasTrailingPunct
+              ? titleStyle.fontSize * PUNCT_OVERHANG_RATIO
+              : 0;
             return (
               <span
                 key={i}

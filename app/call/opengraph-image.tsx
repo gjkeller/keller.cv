@@ -4,14 +4,14 @@ import { getOgFonts } from "@/lib/og/fonts";
 
 export const runtime = "nodejs";
 
-export const alt = "Gabriel Keller — Building agent infrastructure";
+export const alt = "Book a call with Gabriel Keller";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 
 export default async function Image() {
   const fonts = await getOgFonts();
 
-  return new ImageResponse(<HandleOg handle="@gjkeller" variant="home" />, {
+  return new ImageResponse(<HandleOg handle="@gjkeller/call" variant="path" />, {
     ...size,
     fonts,
   });

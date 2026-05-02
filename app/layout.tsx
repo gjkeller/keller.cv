@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: { default: "Gabriel Keller", template: "%s | Gabriel Keller" },
-  description: "Building agent infrastructure.",
+  description: "CS @ UT Austin · Building agent infrastructure",
   metadataBase: new URL("https://keller.cv"),
   openGraph: {
     title: "Gabriel Keller",

@@ -29,6 +29,12 @@ export async function generateMetadata({ params }: BlogPostPageProps) {
   // The OG image always comes from the colocated app/blog/[slug]/opengraph-image.tsx
   // route (kicker + title). `post.image` frontmatter is reserved for the
   // in-article hero image and is intentionally not surfaced as the OG image.
+  // We restate the auto-discovered image URL here so we can attach a per-post
+  // alt; without this override Next.js uses the static `alt` exported from
+  // opengraph-image.tsx, which can't see the post title.
+  const ogImageUrl = `https://keller.cv/blog/${slug}/opengraph-image`;
+  const ogImageAlt = `${post.title} — Gabriel Keller`;
+
   return {
     title: post.title,
     description: post.description || `Read ${post.title} by Gabriel Keller`,
@@ -40,11 +46,13 @@ export async function generateMetadata({ params }: BlogPostPageProps) {
       publishedTime: post.date,
       authors: [post.author || "Gabriel Keller"],
       tags: post.tags,
+      images: [{ url: ogImageUrl, alt: ogImageAlt, width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
+      images: [{ url: ogImageUrl, alt: ogImageAlt }],
     },
     alternates: { canonical: `https://keller.cv/blog/${slug}` },
   };

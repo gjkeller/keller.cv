@@ -18,20 +18,23 @@ async function load(filename: string): Promise<Buffer> {
   return readFile(join(FONT_DIR, filename));
 }
 
-let cache: OgFont[] | null = null;
-
-export async function getOgFonts(): Promise<OgFont[]> {
-  if (cache) return cache;
-
+async function loadFonts(): Promise<OgFont[]> {
   const [geistMedium, geistBold] = await Promise.all([
     load("Geist-Medium.ttf"),
     load("Geist-Bold.ttf"),
   ]);
 
-  cache = [
+  return [
     { name: "Geist", data: geistMedium, weight: 500, style: "normal" },
     { name: "Geist", data: geistBold, weight: 700, style: "normal" },
   ];
+}
 
+// Cache the in-flight promise (not the resolved value) so two parallel cold
+// callers share one disk read instead of racing two.
+let cache: Promise<OgFont[]> | null = null;
+
+export function getOgFonts(): Promise<OgFont[]> {
+  cache ??= loadFonts();
   return cache;
 }

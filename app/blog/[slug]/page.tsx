@@ -26,10 +26,9 @@ export async function generateMetadata({ params }: BlogPostPageProps) {
     };
   }
 
-  const ogImages = post.image
-    ? [{ url: post.image, alt: post.title }]
-    : undefined;
-
+  // The OG image always comes from the colocated app/blog/[slug]/opengraph-image.tsx
+  // route (kicker + title). `post.image` frontmatter is reserved for the
+  // in-article hero image and is intentionally not surfaced as the OG image.
   return {
     title: post.title,
     description: post.description || `Read ${post.title} by Gabriel Keller`,
@@ -41,13 +40,11 @@ export async function generateMetadata({ params }: BlogPostPageProps) {
       publishedTime: post.date,
       authors: [post.author || "Gabriel Keller"],
       tags: post.tags,
-      ...(ogImages && { images: ogImages }),
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
-      ...(ogImages && { images: ogImages }),
     },
     alternates: { canonical: `https://keller.cv/blog/${slug}` },
   };

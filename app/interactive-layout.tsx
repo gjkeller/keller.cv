@@ -733,7 +733,7 @@ export function InteractiveLayout({
           <header>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-semibold" style={{ color: theme.text }}>{name}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight" style={{ color: theme.text }}>{name}</h1>
                 <p className="text-sm mt-1.5" style={{ color: theme.textDim }}>{tagline}</p>
               </div>
               <div className="flex items-center gap-3 mt-1.5">

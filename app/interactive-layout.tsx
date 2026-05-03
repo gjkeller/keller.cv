@@ -264,6 +264,20 @@ export function InteractiveLayout({
   const [blogsExpanded, setBlogsExpanded] = useState(
     initialSectionIntent === "blog",
   );
+  const [homeAboveOpen, setHomeAboveOpen] = useState(
+    initialSectionIntent !== "blog",
+  );
+  // Versioned request so the terminal re-fires even when the same file is
+  // requested multiple times.
+  const [autoTypeRequest, setAutoTypeRequest] = useState<
+    { file: string; id: number } | null
+  >(null);
+  const autoTypeRequestIdRef = useRef(0);
+  const hasShownWelcomeRef = useRef(initialSectionIntent !== "blog");
+  const requestTerminalAutoType = useCallback((file: string) => {
+    autoTypeRequestIdRef.current += 1;
+    setAutoTypeRequest({ file, id: autoTypeRequestIdRef.current });
+  }, []);
   const [desktopTooltip, setDesktopTooltip] = useState<{
     key: string;
     x: number;
@@ -662,6 +676,17 @@ export function InteractiveLayout({
     }
     if (blogsExpanded) {
       setBlogsExpanded(false);
+      // If we arrived directly at /blog, the home content is currently
+      // collapsed — re-open it so it animates back into view.
+      const wasHomeAboveClosed = !homeAboveOpen;
+      if (wasHomeAboveClosed) {
+        setHomeAboveOpen(true);
+        if (!hasShownWelcomeRef.current) {
+          hasShownWelcomeRef.current = true;
+          requestTerminalAutoType("welcome.md");
+        }
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
       if (window.location.pathname === "/blog") {
         window.history.pushState({ section: "home" }, "", "/");
         syncDocumentTitle();
@@ -670,34 +695,43 @@ export function InteractiveLayout({
     }
     pendingScrollRef.current = "smooth";
     setBlogsExpanded(true);
+    requestTerminalAutoType("blogs.md");
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
       syncDocumentTitle();
     }
-  }, [blogsExpanded]);
+  }, [blogsExpanded, homeAboveOpen, requestTerminalAutoType]);
 
-  // Direct /blog navigation: scroll instantly once the first paint is done
+  // Direct /blog navigation: home content above is rendered with height 0 so
+  // Writing sits naturally at the top of the document — no scroll needed.
+  // We just guarantee window.scrollY is 0 to override any residual restore.
   const didInitialScroll = useRef(false);
   useEffect(() => {
     if (initialSectionIntent !== "blog" || didInitialScroll.current) return;
     didInitialScroll.current = true;
-    // Use rAF to let Radix render the open content before we scroll
-    requestAnimationFrame(() => scrollToWriting("instant"));
-  }, [initialSectionIntent, scrollToWriting]);
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
+  }, [initialSectionIntent]);
 
   useEffect(() => {
     const handlePopState = () => {
       if (window.location.pathname === "/blog") {
         pendingScrollRef.current = "smooth";
         setBlogsExpanded(true);
+        setHomeAboveOpen(false);
       } else {
         setBlogsExpanded(false);
+        setHomeAboveOpen(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        if (!hasShownWelcomeRef.current) {
+          hasShownWelcomeRef.current = true;
+          requestTerminalAutoType("welcome.md");
+        }
       }
       syncDocumentTitle();
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [requestTerminalAutoType]);
 
   return (
     <main
@@ -751,6 +785,13 @@ export function InteractiveLayout({
         }}
       >
         <div className="max-w-[480px] mx-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
+          {/* Home-only sections (header, Currently, Projects). Collapses to
+              height 0 when navigating directly to /blog so the page lands on
+              Writing without any homepage flash above it. */}
+          <CollapsiblePrimitive.Root open={homeAboveOpen} onOpenChange={setHomeAboveOpen}>
+          <CollapsiblePrimitive.Content
+            className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up"
+          >
           {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
@@ -895,6 +936,8 @@ export function InteractiveLayout({
           </Section>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
+          </CollapsiblePrimitive.Content>
+          </CollapsiblePrimitive.Root>
 
           {/* Writing */}
           <CollapsiblePrimitive.Root open={blogsExpanded} onOpenChange={setBlogsExpanded} asChild>
@@ -998,6 +1041,8 @@ export function InteractiveLayout({
             onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
             onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
             onThemeChange={handleThemeChange}
+            initialAutoFile={initialSectionIntent === "blog" ? "blogs.md" : "welcome.md"}
+            autoTypeRequest={autoTypeRequest}
           />
         </div>
       ) : terminalOpen ? (
@@ -1014,6 +1059,8 @@ export function InteractiveLayout({
             onExpand={() => {}}
             onThemeChange={handleThemeChange}
             borderless
+            initialAutoFile={initialSectionIntent === "blog" ? "blogs.md" : "welcome.md"}
+            autoTypeRequest={autoTypeRequest}
           />
         </div>
       ) : null}

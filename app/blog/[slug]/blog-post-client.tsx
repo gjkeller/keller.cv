@@ -167,15 +167,32 @@ export function BlogPostClient({
       `}</style>
       <div className="max-w-3xl relative">
         <div
-          className="sticky top-0 z-40 -mt-14 mb-14 -mx-10 sm:-mx-16 lg:-mx-24 px-10 sm:px-16 lg:px-24 transition-colors duration-300"
+          className="sticky top-0 z-40 -mt-14 mb-14 -mx-10 sm:-mx-16 lg:-mx-24 px-10 sm:px-16 lg:px-24 transition-[background-color] duration-300"
           style={{
-            backgroundColor: getHeaderTint(themeMode, theme.isDark),
-            backdropFilter: "blur(18px) saturate(1.6)",
-            WebkitBackdropFilter: "blur(18px) saturate(1.6)",
+            backgroundColor: headerStuck ? "transparent" : getHeaderTint(themeMode, theme.isDark),
+            backdropFilter: headerStuck ? "none" : "blur(18px) saturate(1.6)",
+            WebkitBackdropFilter: headerStuck ? "none" : "blur(18px) saturate(1.6)",
           }}
         >
-          <div className="max-w-3xl mx-auto">
-            <div className="relative min-h-6 py-3">
+          <div
+            className="max-w-3xl mx-auto transition-[transform,border-radius,border-color,background-color] duration-300"
+            style={{
+              transform: headerStuck ? "translateY(0.75rem)" : "translateY(0)",
+              backgroundColor: headerStuck ? getHeaderTint(themeMode, theme.isDark) : "transparent",
+              backdropFilter: headerStuck ? "blur(18px) saturate(1.6)" : "none",
+              WebkitBackdropFilter: headerStuck ? "blur(18px) saturate(1.6)" : "none",
+              border: "1px solid",
+              borderColor: headerStuck ? "var(--theme-border)" : "transparent",
+              borderRadius: headerStuck ? "9999px" : "0px",
+            }}
+          >
+            <div
+              className="relative min-h-6 py-3 transition-[padding] duration-300"
+              style={{
+                paddingLeft: headerStuck ? "1.5rem" : "0",
+                paddingRight: headerStuck ? "1.5rem" : "0",
+              }}
+            >
               <Link
                 href="/blog"
                 className="inline-flex items-center justify-center text-lg font-medium transition-colors duration-300 hover:opacity-80 whitespace-nowrap outline-none focus:outline-none focus-visible:outline-none"
@@ -192,7 +209,10 @@ export function BlogPostClient({
                   Gabriel Keller
                 </Link>
               </div>
-              <div className="absolute right-0 top-1/2 -translate-y-1/2">
+              <div
+                className="absolute top-1/2 -translate-y-1/2 transition-[right] duration-300"
+                style={{ right: headerStuck ? "1.5rem" : "0" }}
+              >
                 <DropdownMenu open={themeMenuOpen} onOpenChange={setThemeMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -233,10 +253,6 @@ export function BlogPostClient({
                 </DropdownMenu>
               </div>
             </div>
-            <div
-              className={`h-px transition-opacity duration-150 ${headerStuck ? "opacity-100" : "opacity-0"}`}
-              style={{ backgroundColor: "var(--theme-border)" }}
-            />
           </div>
         </div>
         {/* Hero image */}

@@ -1018,6 +1018,12 @@ export function InteractiveLayout({
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
             <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>
           </footer>
+
+          {/* Scroll headroom: ensures the Writing heading can scroll all the
+              way up to the terminal's top edge when blogs are expanded. */}
+          {blogsExpanded && (
+            <div aria-hidden className="hidden lg:block" style={{ height: "100vh" }} />
+          )}
         </div>
       </div>
 

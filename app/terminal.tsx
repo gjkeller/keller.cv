@@ -18,6 +18,13 @@ interface TerminalProps {
   onThemeChange?: (name: string) => void;
   borderless?: boolean;
   sessionKey?: string;
+  /** File auto-typed (`cat <file>`) on first paint of a fresh session. */
+  initialAutoFile?: string;
+  /**
+   * Externally-driven `cat <file>` request. Increment `id` to retrigger even
+   * with the same `file`. Set to `null` for no request.
+   */
+  autoTypeRequest?: { file: string; id: number } | null;
 }
 
 export { THEME_NAMES };
@@ -128,6 +135,8 @@ export function Terminal({
   onThemeChange,
   borderless = false,
   sessionKey = "main",
+  initialAutoFile = "welcome.md",
+  autoTypeRequest = null,
 }: TerminalProps) {
   const dark = theme.isDark;
   const [history, setHistory] = useState<{ prompt: string; command: string; output: string }[]>([]);
@@ -678,15 +687,16 @@ export function Terminal({
     }
   }, [autoPhase, outputTyper.done, autoCommand, autoOutput, currentPrompt]);
 
-  // Initial welcome
+  // Initial intro file (welcome.md by default; can be overridden, e.g. with
+  // blogs.md when the user lands directly on /blog).
   useEffect(() => {
     if (!storageReady) return;
     if (history.length > 0) return;
-    const welcome = staticFiles["welcome.md"] || "Type 'help' for commands.";
-    setAutoCommand("cat welcome.md");
-    setAutoOutput(welcome);
+    const intro = staticFiles[initialAutoFile] || "Type 'help' for commands.";
+    setAutoCommand(`cat ${initialAutoFile}`);
+    setAutoOutput(intro);
     setAutoPhase("typing-cmd");
-  }, [storageReady, history.length, staticFiles]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [storageReady, history.length, staticFiles, initialAutoFile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // React to clicks from left column
   useEffect(() => {
@@ -722,6 +732,33 @@ export function Terminal({
     const urlMatch = activeFile.content.match(/^(https?:\/\/[^\s]+)$/m);
     if (urlMatch) setDynamicUrls((prev) => ({ ...prev, [fileName]: urlMatch[1] }));
   }, [activeFile]);
+
+  // Externally-requested `cat <file>` (e.g. when navigating between /blog and /).
+  const lastAutoTypeReqIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!autoTypeRequest) return;
+    if (lastAutoTypeReqIdRef.current === autoTypeRequest.id) return;
+    lastAutoTypeReqIdRef.current = autoTypeRequest.id;
+    if (!storageReady) return;
+    const { file } = autoTypeRequest;
+    const content = staticFiles[file];
+    if (!content) return;
+
+    if (chatMode) {
+      if (isStreaming) abortRef.current?.abort();
+      setChatMode(false);
+      setChatMessages([]);
+      setHistory((prev) => [...prev, { prompt: "user> ", command: "", output: "Leaving agent mode." }]);
+    }
+
+    if (autoPhase !== "idle" && (autoCommand || autoOutput)) {
+      setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
+    }
+
+    setAutoCommand(`cat ${file}`);
+    setAutoOutput(content);
+    setAutoPhase("typing-cmd");
+  }, [autoTypeRequest, storageReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll
   useEffect(() => {

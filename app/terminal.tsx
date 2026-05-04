@@ -677,29 +677,32 @@ export function Terminal({
   }, [inputValue, cursorPos, cmdHistory, historyIdx, autoPhase, handleSubmit, getCompletions, currentPrompt, isStreaming, chatMode]);
 
   /* ── Auto-type lifecycle ──
-   * Each entry in autoQueueRef is a command string. We pop the head, type it,
-   * run it via runCommand to capture side effects + output, type the output,
-   * commit to history, then advance.
+   * Each entry in autoQueueRef is a single command line which may contain
+   * `&&` chaining (e.g. `clear && cat blogs.md && cd blog`). The whole line
+   * is typed verbatim by the typewriter; once the user-visible typing
+   * finishes we execute each part of the chain in order, applying side
+   * effects (cd / clear) and committing one history entry per non-clear
+   * part.
    */
-
-  // Resolve a queued command into its output text + the side effect to apply
-  // *after* the typewriter finishes (so the prompt for the just-typed command
-  // is the OLD cwd, and the new cwd is only applied for subsequent commands).
   type SideEffect = "none" | "clear" | { kind: "cd"; newCwd: string };
-  const resolveAutoCommand = (raw: string): { output: string; sideEffect: SideEffect } => {
+
+  const resolveSinglePart = (
+    raw: string,
+    cwdAtCall: string,
+  ): { output: string; sideEffect: SideEffect } => {
     const [base, ...rest] = raw.trim().split(/\s+/);
     const arg = rest.join(" ");
     if (base === "clear") return { output: "", sideEffect: "clear" };
     if (base === "cd") {
-      let newCwd = cwd;
+      let newCwd = cwdAtCall;
       if (!arg || arg === "~" || arg === "~/" || arg === ".." || arg === "../") {
         newCwd = "~";
       } else {
         const target = arg.startsWith("~/")
           ? arg.slice(2) || "~"
-          : cwd === "~"
+          : cwdAtCall === "~"
             ? arg.replace(/\/$/, "")
-            : `${cwd}/${arg}`.replace(/\/$/, "");
+            : `${cwdAtCall}/${arg}`.replace(/\/$/, "");
         if (dirs[target] !== undefined) newCwd = target;
       }
       return { output: "", sideEffect: { kind: "cd", newCwd } };
@@ -707,9 +710,9 @@ export function Terminal({
     if (base === "cat") {
       const filePath = arg.startsWith("~/")
         ? arg.slice(2)
-        : cwd === "~"
+        : cwdAtCall === "~"
           ? arg
-          : `${cwd}/${arg}`;
+          : `${cwdAtCall}/${arg}`;
       const content = fs[filePath] || fs[arg] || `cat: ${arg}: No such file or directory`;
       return { output: content, sideEffect: "none" };
     }
@@ -719,10 +722,10 @@ export function Terminal({
           ? "~"
           : arg.startsWith("~/")
             ? arg.slice(2) || "~"
-            : cwd === "~"
+            : cwdAtCall === "~"
               ? arg.replace(/\/$/, "")
-              : `${cwd}/${arg}`.replace(/\/$/, "")
-        : cwd;
+              : `${cwdAtCall}/${arg}`.replace(/\/$/, "")
+        : cwdAtCall;
       const entries = dirs[dir] || dirs[dir.replace("/", "")];
       return {
         output: entries
@@ -736,7 +739,15 @@ export function Terminal({
     return { output: "", sideEffect: "none" };
   };
 
-  const pendingSideEffectRef = useRef<SideEffect>("none");
+  // Plan generated when a chain begins typing; consumed at commit time.
+  type ChainPart = { command: string; output: string; sideEffect: SideEffect };
+  type ChainPlan = {
+    parts: ChainPart[];
+    typedLine: string;
+    promptAtType: string;
+  };
+  const chainPlanRef = useRef<ChainPlan | null>(null);
+
   const advanceAutoQueueRef = useRef<() => void>(() => {});
   advanceAutoQueueRef.current = () => {
     const next = autoQueueRef.current.shift();
@@ -744,34 +755,80 @@ export function Terminal({
       setAutoCommand("");
       setAutoOutput("");
       setAutoPhase("idle");
-      pendingSideEffectRef.current = "none";
+      chainPlanRef.current = null;
       return;
     }
-    const { output, sideEffect } = resolveAutoCommand(next);
-    pendingSideEffectRef.current = sideEffect;
+    const parts = next
+      .split(/\s*&&\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let projectedCwd = cwd;
+    const planParts: ChainPart[] = parts.map((p) => {
+      const resolved = resolveSinglePart(p, projectedCwd);
+      if (
+        resolved.sideEffect !== "none" &&
+        resolved.sideEffect !== "clear" &&
+        resolved.sideEffect.kind === "cd"
+      ) {
+        projectedCwd = resolved.sideEffect.newCwd;
+      }
+      return { command: p, output: resolved.output, sideEffect: resolved.sideEffect };
+    });
+    chainPlanRef.current = {
+      parts: planParts,
+      typedLine: next,
+      promptAtType: currentPrompt,
+    };
+    // Concatenate non-empty outputs so the typewriter streams them all under
+    // the single typed-out command line. Outputs are joined by a blank line.
+    const concatenated = planParts
+      .map((p) => p.output)
+      .filter((o) => o !== "")
+      .join("\n");
     setAutoCommand(next);
-    setAutoOutput(output);
+    setAutoOutput(concatenated);
     setAutoPhase("typing-cmd");
   };
 
-  // Commit + advance: factored so both the empty-output and streamed-output
-  // paths use it.
   const commitAndAdvanceRef = useRef<() => void>(() => {});
   commitAndAdvanceRef.current = () => {
-    const cmd = autoCommand;
-    const output = autoOutput;
-    const promptAtCommit = currentPrompt;
-    const effect = pendingSideEffectRef.current;
-    pendingSideEffectRef.current = "none";
+    const plan = chainPlanRef.current;
+    chainPlanRef.current = null;
+    if (!plan) {
+      advanceAutoQueueRef.current();
+      return;
+    }
 
-    if (effect === "clear") {
-      setHistory([]);
-    } else {
-      setHistory((prev) => [...prev, { prompt: promptAtCommit, command: cmd, output }]);
-      if (effect !== "none" && effect.kind === "cd") {
-        setCwd(effect.newCwd);
+    // Apply side effects in order. Compute the final cwd, whether the
+    // chain included `clear` (which wipes scrollback), and the concatenated
+    // output that should appear under the single typed line.
+    let nextCwd = cwd;
+    let cleared = false;
+    const collectedOutputs: string[] = [];
+    for (const part of plan.parts) {
+      if (part.sideEffect === "clear") {
+        cleared = true;
+        collectedOutputs.length = 0; // anything before clear is wiped
+        continue;
+      }
+      if (part.output) collectedOutputs.push(part.output);
+      if (part.sideEffect !== "none" && part.sideEffect.kind === "cd") {
+        nextCwd = part.sideEffect.newCwd;
       }
     }
+
+    const entry = {
+      prompt: plan.promptAtType,
+      command: plan.typedLine,
+      output: collectedOutputs.join("\n"),
+    };
+    if (cleared) {
+      setHistory([entry]);
+    } else {
+      setHistory((prev) => [...prev, entry]);
+    }
+    if (nextCwd !== cwd) setCwd(nextCwd);
+
     advanceAutoQueueRef.current();
   };
 

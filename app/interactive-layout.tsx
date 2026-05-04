@@ -653,14 +653,19 @@ export function InteractiveLayout({
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
 
-  // Compute the window.scrollY offset at which the Writing heading sits at
-  // the very top of the viewport (so all home content above is scrolled
-  // completely out of view).
+  // Compute the window.scrollY offset at which the Writing heading aligns
+  // with the terminal pane's top edge. A fixed-position mask covers the
+  // viewport area above the terminal so any home content in that band is
+  // hidden while expanded.
   const computeWritingScrollTarget = useCallback(() => {
     const heading = writingSectionRef.current;
     if (!heading) return 0;
+    const wrapper = terminalWrapperRef.current;
+    const desiredTop = wrapper
+      ? wrapper.getBoundingClientRect().top
+      : window.innerHeight * 0.1;
     const headingTop = heading.getBoundingClientRect().top;
-    return Math.max(0, window.scrollY + headingTop);
+    return Math.max(0, window.scrollY + headingTop - desiredTop);
   }, []);
 
   const scrollToWriting = useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -743,6 +748,18 @@ export function InteractiveLayout({
       onMouseMove={handleGlossMove}
       onMouseOut={handleGlossLeave}
     >
+      {/* Top mask: hides any home content that would otherwise peek through
+          above the Writing heading when the user has scrolled to the
+          expanded view. Sized to the band above the terminal pane (10vh),
+          covering only the content column side so the terminal pane and
+          its top edge stay visible. */}
+      {blogsExpanded && (
+        <div
+          aria-hidden
+          className="hidden lg:block fixed top-0 left-0 z-10 pointer-events-none w-full lg:w-[50vw] h-[10vh]"
+          style={{ backgroundColor: theme.bg }}
+        />
+      )}
       <style>{`
         .ghost-card:hover { background-color: var(--hover-bg); border-color: var(--hover-border); box-shadow: var(--hover-shadow); }
         .ghost-card:active { box-shadow: var(--active-shadow); }

@@ -799,18 +799,13 @@ export function Terminal({
       return;
     }
 
-    // Apply side effects in order. Compute the final cwd, whether the
-    // chain included `clear` (which wipes scrollback), and the concatenated
-    // output that should appear under the single typed line.
+    // Apply final side effects (cd) and append the chain entry. `clear` was
+    // already applied when typing finished, so nothing to do for it here
+    // beyond skipping its (empty) output.
     let nextCwd = cwd;
-    let cleared = false;
     const collectedOutputs: string[] = [];
     for (const part of plan.parts) {
-      if (part.sideEffect === "clear") {
-        cleared = true;
-        collectedOutputs.length = 0; // anything before clear is wiped
-        continue;
-      }
+      if (part.sideEffect === "clear") continue;
       if (part.output) collectedOutputs.push(part.output);
       if (part.sideEffect !== "none" && part.sideEffect.kind === "cd") {
         nextCwd = part.sideEffect.newCwd;
@@ -822,11 +817,7 @@ export function Terminal({
       command: plan.typedLine,
       output: collectedOutputs.join("\n"),
     };
-    if (cleared) {
-      setHistory([entry]);
-    } else {
-      setHistory((prev) => [...prev, entry]);
-    }
+    setHistory((prev) => [...prev, entry]);
     if (nextCwd !== cwd) setCwd(nextCwd);
 
     advanceAutoQueueRef.current();
@@ -840,6 +831,13 @@ export function Terminal({
     if (autoPhase !== "typing-cmd") return;
     if (!autoCommand) return;
     if (cmdTyper.displayed !== autoCommand) return;
+    // Apply `clear` *before* the output streams (real-shell ordering): if the
+    // chain contains `clear`, wipe scrollback the moment the command line
+    // finishes typing, then stream the post-clear output below.
+    const plan = chainPlanRef.current;
+    if (plan && plan.parts.some((p) => p.sideEffect === "clear")) {
+      setHistory([]);
+    }
     if (autoOutput) {
       setAutoPhase("typing-output");
     } else {

@@ -287,9 +287,7 @@ export function InteractiveLayout({
   const tooltipTimeoutRef = useRef<number | null>(null);
   const clickKeyRef = useRef<string | null>(null);
   const singleClickCountRef = useRef(0);
-  const writingHeadingRef = useRef<HTMLDivElement | null>(null);
   const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
-  const pendingScrollRef = useRef<"smooth" | "instant" | null>(null);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
   const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
   useEffect(() => {
@@ -647,28 +645,6 @@ export function InteractiveLayout({
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
 
-  const getTerminalTop = useCallback(() => {
-    const wrapper = terminalWrapperRef.current;
-    if (wrapper) return wrapper.getBoundingClientRect().top;
-    return window.innerHeight * 0.1;
-  }, []);
-
-  const scrollToWriting = useCallback((behavior: ScrollBehavior = "smooth") => {
-    const heading = writingHeadingRef.current;
-    if (!heading) return;
-    const desiredTop = getTerminalTop();
-    const currentTop = heading.getBoundingClientRect().top;
-    const targetY = window.scrollY + currentTop - desiredTop;
-    window.scrollTo({ top: Math.max(0, targetY), behavior });
-  }, [getTerminalTop]);
-
-  const handleCollapsibleAnimEnd = useCallback(() => {
-    const behavior = pendingScrollRef.current;
-    if (!behavior) return;
-    pendingScrollRef.current = null;
-    scrollToWriting(behavior);
-  }, [scrollToWriting]);
-
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
       window.open("/blog", "_blank", "noopener,noreferrer");
@@ -676,52 +652,37 @@ export function InteractiveLayout({
     }
     if (blogsExpanded) {
       setBlogsExpanded(false);
-      // If we arrived directly at /blog, the home content is currently
-      // collapsed — re-open it so it animates back into view.
-      const wasHomeAboveClosed = !homeAboveOpen;
-      if (wasHomeAboveClosed) {
-        setHomeAboveOpen(true);
-        if (!hasShownWelcomeRef.current) {
-          hasShownWelcomeRef.current = true;
-          requestTerminalAutoType("welcome.md");
-        }
+      setHomeAboveOpen(true);
+      if (!hasShownWelcomeRef.current) {
+        hasShownWelcomeRef.current = true;
+        requestTerminalAutoType("welcome.md");
       }
-      window.scrollTo({ top: 0, behavior: "smooth" });
       if (window.location.pathname === "/blog") {
         window.history.pushState({ section: "home" }, "", "/");
         syncDocumentTitle();
       }
       return;
     }
-    pendingScrollRef.current = "smooth";
     setBlogsExpanded(true);
+    setHomeAboveOpen(false);
     requestTerminalAutoType("blogs.md");
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
       syncDocumentTitle();
     }
-  }, [blogsExpanded, homeAboveOpen, requestTerminalAutoType]);
+  }, [blogsExpanded, requestTerminalAutoType]);
 
-  // Direct /blog navigation: home content above is rendered with height 0 so
-  // Writing sits naturally at the top of the document — no scroll needed.
-  // We just guarantee window.scrollY is 0 to override any residual restore.
-  const didInitialScroll = useRef(false);
-  useEffect(() => {
-    if (initialSectionIntent !== "blog" || didInitialScroll.current) return;
-    didInitialScroll.current = true;
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
-  }, [initialSectionIntent]);
+  // Direct /blog navigation: home content is unmounted via Radix Collapsible
+  // so Writing is naturally at the top of the document — no scroll needed.
 
   useEffect(() => {
     const handlePopState = () => {
       if (window.location.pathname === "/blog") {
-        pendingScrollRef.current = "smooth";
         setBlogsExpanded(true);
         setHomeAboveOpen(false);
       } else {
         setBlogsExpanded(false);
         setHomeAboveOpen(true);
-        window.scrollTo({ top: 0, behavior: "smooth" });
         if (!hasShownWelcomeRef.current) {
           hasShownWelcomeRef.current = true;
           requestTerminalAutoType("welcome.md");
@@ -942,7 +903,7 @@ export function InteractiveLayout({
           {/* Writing */}
           <CollapsiblePrimitive.Root open={blogsExpanded} onOpenChange={setBlogsExpanded} asChild>
           <section>
-            <div ref={writingHeadingRef} className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
               <button
                 type="button"
@@ -950,7 +911,7 @@ export function InteractiveLayout({
                 className="text-xs transition-colors hover:opacity-70"
                 style={{ color: theme.textMuted }}
               >
-                {blogsExpanded ? "Collapse" : "View all \u2192"}
+                {blogsExpanded ? "\u2190 Back to home" : "View all \u2192"}
               </button>
             </div>
             {previewPosts.length > 0 ? (
@@ -982,7 +943,6 @@ export function InteractiveLayout({
 
             {/* Expanded blog list — Radix Collapsible handles height animation */}
             <CollapsiblePrimitive.Content
-              onAnimationEnd={handleCollapsibleAnimEnd}
               className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up"
             >
               <div>
@@ -1018,12 +978,6 @@ export function InteractiveLayout({
           <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
             <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>
           </footer>
-
-          {/* Scroll headroom: ensures the Writing heading can scroll all the
-              way up to the terminal's top edge when blogs are expanded. */}
-          {blogsExpanded && (
-            <div aria-hidden className="hidden lg:block" style={{ height: "100vh" }} />
-          )}
         </div>
       </div>
 

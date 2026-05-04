@@ -18,13 +18,13 @@ interface TerminalProps {
   onThemeChange?: (name: string) => void;
   borderless?: boolean;
   sessionKey?: string;
-  /** File auto-typed (`cat <file>`) on first paint of a fresh session. */
-  initialAutoFile?: string;
+  /** Commands auto-typed in sequence on first paint of a fresh session. */
+  initialAutoCommands?: string[];
   /**
-   * Externally-driven `cat <file>` request. Increment `id` to retrigger even
-   * with the same `file`. Set to `null` for no request.
+   * Externally-driven command chain (e.g. `["clear", "cat blogs.md", "cd blog"]`).
+   * Increment `id` to retrigger; set to `null` for no request.
    */
-  autoTypeRequest?: { file: string; id: number } | null;
+  autoTypeRequest?: { commands: string[]; id: number } | null;
 }
 
 export { THEME_NAMES };
@@ -135,7 +135,7 @@ export function Terminal({
   onThemeChange,
   borderless = false,
   sessionKey = "main",
-  initialAutoFile = "welcome.md",
+  initialAutoCommands,
   autoTypeRequest = null,
 }: TerminalProps) {
   const dark = theme.isDark;
@@ -163,6 +163,9 @@ export function Terminal({
   const [autoPhase, setAutoPhase] = useState<"idle" | "typing-cmd" | "typing-output">("idle");
   const prevFileRef = useRef<string | null>(null);
   const [storageReady, setStorageReady] = useState(false);
+  // Queue of upcoming auto-type commands. We pop the head, type it, run it,
+  // commit its output to history, then advance to the next.
+  const autoQueueRef = useRef<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -673,30 +676,141 @@ export function Terminal({
     }
   }, [inputValue, cursorPos, cmdHistory, historyIdx, autoPhase, handleSubmit, getCompletions, currentPrompt, isStreaming, chatMode]);
 
-  /* ── Auto-type lifecycle ── */
-  useEffect(() => {
-    if (autoPhase === "typing-cmd" && cmdTyper.done) setAutoPhase("typing-output");
-  }, [autoPhase, cmdTyper.done]);
+  /* ── Auto-type lifecycle ──
+   * Each entry in autoQueueRef is a command string. We pop the head, type it,
+   * run it via runCommand to capture side effects + output, type the output,
+   * commit to history, then advance.
+   */
 
-  useEffect(() => {
-    if (autoPhase === "typing-output" && outputTyper.done) {
-      setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
+  // Resolve a queued command into its output text + the side effect to apply
+  // *after* the typewriter finishes (so the prompt for the just-typed command
+  // is the OLD cwd, and the new cwd is only applied for subsequent commands).
+  type SideEffect = "none" | "clear" | { kind: "cd"; newCwd: string };
+  const resolveAutoCommand = (raw: string): { output: string; sideEffect: SideEffect } => {
+    const [base, ...rest] = raw.trim().split(/\s+/);
+    const arg = rest.join(" ");
+    if (base === "clear") return { output: "", sideEffect: "clear" };
+    if (base === "cd") {
+      let newCwd = cwd;
+      if (!arg || arg === "~" || arg === "~/" || arg === ".." || arg === "../") {
+        newCwd = "~";
+      } else {
+        const target = arg.startsWith("~/")
+          ? arg.slice(2) || "~"
+          : cwd === "~"
+            ? arg.replace(/\/$/, "")
+            : `${cwd}/${arg}`.replace(/\/$/, "");
+        if (dirs[target] !== undefined) newCwd = target;
+      }
+      return { output: "", sideEffect: { kind: "cd", newCwd } };
+    }
+    if (base === "cat") {
+      const filePath = arg.startsWith("~/")
+        ? arg.slice(2)
+        : cwd === "~"
+          ? arg
+          : `${cwd}/${arg}`;
+      const content = fs[filePath] || fs[arg] || `cat: ${arg}: No such file or directory`;
+      return { output: content, sideEffect: "none" };
+    }
+    if (base === "ls") {
+      const dir = arg
+        ? arg === "~"
+          ? "~"
+          : arg.startsWith("~/")
+            ? arg.slice(2) || "~"
+            : cwd === "~"
+              ? arg.replace(/\/$/, "")
+              : `${cwd}/${arg}`.replace(/\/$/, "")
+        : cwd;
+      const entries = dirs[dir] || dirs[dir.replace("/", "")];
+      return {
+        output: entries
+          ? entries.length
+            ? entries.join("  ")
+            : "(empty)"
+          : `ls: ${arg || dir}: No such file or directory`,
+        sideEffect: "none",
+      };
+    }
+    return { output: "", sideEffect: "none" };
+  };
+
+  const pendingSideEffectRef = useRef<SideEffect>("none");
+  const advanceAutoQueueRef = useRef<() => void>(() => {});
+  advanceAutoQueueRef.current = () => {
+    const next = autoQueueRef.current.shift();
+    if (!next) {
       setAutoCommand("");
       setAutoOutput("");
       setAutoPhase("idle");
+      pendingSideEffectRef.current = "none";
+      return;
     }
-  }, [autoPhase, outputTyper.done, autoCommand, autoOutput, currentPrompt]);
+    const { output, sideEffect } = resolveAutoCommand(next);
+    pendingSideEffectRef.current = sideEffect;
+    setAutoCommand(next);
+    setAutoOutput(output);
+    setAutoPhase("typing-cmd");
+  };
 
-  // Initial intro file (welcome.md by default; can be overridden, e.g. with
-  // blogs.md when the user lands directly on /blog).
+  // Commit + advance: factored so both the empty-output and streamed-output
+  // paths use it.
+  const commitAndAdvanceRef = useRef<() => void>(() => {});
+  commitAndAdvanceRef.current = () => {
+    const cmd = autoCommand;
+    const output = autoOutput;
+    const promptAtCommit = currentPrompt;
+    const effect = pendingSideEffectRef.current;
+    pendingSideEffectRef.current = "none";
+
+    if (effect === "clear") {
+      setHistory([]);
+    } else {
+      setHistory((prev) => [...prev, { prompt: promptAtCommit, command: cmd, output }]);
+      if (effect !== "none" && effect.kind === "cd") {
+        setCwd(effect.newCwd);
+      }
+    }
+    advanceAutoQueueRef.current();
+  };
+
+  // Compare typewriter's displayed text against the current autoCommand /
+  // autoOutput so we don't get spurious "done=true" carry-over when a new
+  // command/output is set in the same React batch (the inner `useTypewriter`
+  // effect has not yet reset `done` for the new text).
+  useEffect(() => {
+    if (autoPhase !== "typing-cmd") return;
+    if (!autoCommand) return;
+    if (cmdTyper.displayed !== autoCommand) return;
+    if (autoOutput) {
+      setAutoPhase("typing-output");
+    } else {
+      commitAndAdvanceRef.current();
+    }
+  }, [autoPhase, cmdTyper.displayed, autoCommand, autoOutput]);
+
+  useEffect(() => {
+    if (autoPhase !== "typing-output") return;
+    if (!autoOutput) return;
+    if (outputTyper.displayed !== autoOutput) return;
+    commitAndAdvanceRef.current();
+  }, [autoPhase, outputTyper.displayed, autoOutput]);
+
+  // Initial intro commands (default: just `cat welcome.md`). Fires exactly
+  // once per Terminal instance after sessionStorage rehydration.
+  const ranInitialRef = useRef(false);
   useEffect(() => {
     if (!storageReady) return;
+    if (ranInitialRef.current) return;
+    ranInitialRef.current = true;
     if (history.length > 0) return;
-    const intro = staticFiles[initialAutoFile] || "Type 'help' for commands.";
-    setAutoCommand(`cat ${initialAutoFile}`);
-    setAutoOutput(intro);
-    setAutoPhase("typing-cmd");
-  }, [storageReady, history.length, staticFiles, initialAutoFile]); // eslint-disable-line react-hooks/exhaustive-deps
+    const initial = initialAutoCommands && initialAutoCommands.length > 0
+      ? initialAutoCommands
+      : ["cat welcome.md"];
+    autoQueueRef.current.push(...initial);
+    advanceAutoQueueRef.current();
+  }, [storageReady, history.length, initialAutoCommands]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // React to clicks from left column
   useEffect(() => {
@@ -733,16 +847,14 @@ export function Terminal({
     if (urlMatch) setDynamicUrls((prev) => ({ ...prev, [fileName]: urlMatch[1] }));
   }, [activeFile]);
 
-  // Externally-requested `cat <file>` (e.g. when navigating between /blog and /).
+  // Externally-requested command chain (e.g. `clear && cat blogs.md && cd blog`
+  // when navigating between /blog and /).
   const lastAutoTypeReqIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (!autoTypeRequest) return;
     if (lastAutoTypeReqIdRef.current === autoTypeRequest.id) return;
     lastAutoTypeReqIdRef.current = autoTypeRequest.id;
     if (!storageReady) return;
-    const { file } = autoTypeRequest;
-    const content = staticFiles[file];
-    if (!content) return;
 
     if (chatMode) {
       if (isStreaming) abortRef.current?.abort();
@@ -751,13 +863,12 @@ export function Terminal({
       setHistory((prev) => [...prev, { prompt: "user> ", command: "", output: "Leaving agent mode." }]);
     }
 
-    if (autoPhase !== "idle" && (autoCommand || autoOutput)) {
-      setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
+    // Enqueue the chain. If the typer is mid-animation, append to the queue
+    // so it will run after the in-progress entry finishes; otherwise kick off.
+    autoQueueRef.current.push(...autoTypeRequest.commands);
+    if (autoPhase === "idle") {
+      advanceAutoQueueRef.current();
     }
-
-    setAutoCommand(`cat ${file}`);
-    setAutoOutput(content);
-    setAutoPhase("typing-cmd");
   }, [autoTypeRequest, storageReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll

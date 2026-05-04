@@ -697,7 +697,7 @@ export function InteractiveLayout({
       return;
     }
     setBlogsExpanded(true);
-    requestTerminalAutoType(["clear && cat blogs.md && cd blog"]);
+    requestTerminalAutoType(["clear && cd blog && cat README.md"]);
     // Scroll on the next frame so the (now-expanded) blog list is in the DOM
     // and the Writing heading's offset can include any newly-rendered posts.
     requestAnimationFrame(() => scrollToWriting("smooth"));
@@ -748,18 +748,6 @@ export function InteractiveLayout({
       onMouseMove={handleGlossMove}
       onMouseOut={handleGlossLeave}
     >
-      {/* Top mask: hides any home content that would otherwise peek through
-          above the Writing heading when the user has scrolled to the
-          expanded view. Sized to the band above the terminal pane (10vh),
-          covering only the content column side so the terminal pane and
-          its top edge stay visible. */}
-      {blogsExpanded && (
-        <div
-          aria-hidden
-          className="hidden lg:block fixed top-0 left-0 z-10 pointer-events-none w-full lg:w-[50vw] h-[10vh]"
-          style={{ backgroundColor: theme.bg }}
-        />
-      )}
       <style>{`
         .ghost-card:hover { background-color: var(--hover-bg); border-color: var(--hover-border); box-shadow: var(--hover-shadow); }
         .ghost-card:active { box-shadow: var(--active-shadow); }
@@ -804,6 +792,15 @@ export function InteractiveLayout({
         }}
       >
         <div className="max-w-[480px] mx-auto">
+          {/* Home-only sections: hidden when blogs are expanded so the user
+              can't scroll up to reveal them while keeping their layout
+              footprint (so doc height + scroll math stay stable). */}
+          <div
+            style={{
+              visibility: blogsExpanded ? "hidden" : "visible",
+              pointerEvents: blogsExpanded ? "none" : "auto",
+            }}
+          >
           {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
@@ -948,11 +945,15 @@ export function InteractiveLayout({
           </Section>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
+          </div>
 
-          {/* Writing — always rendered; on /blog the full list shows, on /
-              only previewPosts. The transition between states is a pure
-              window scroll (handled by handleViewAllClick) so the whole
-              column reads as one continuous page. */}
+          {/* Writing + footer block: pinned at exactly the terminal pane's
+              height (80vh on desktop) so when the user scrolls to the
+              writing-target, Writing aligns with the terminal top and the
+              footer aligns with the terminal bottom. The flex layout pushes
+              the footer to the bottom of this 80vh region while keeping
+              Writing anchored at its top. */}
+          <div className="lg:flex lg:flex-col lg:min-h-[80vh]">
           <section ref={writingSectionRef}>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
@@ -993,20 +994,10 @@ export function InteractiveLayout({
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
           </section>
 
-          <footer className="mt-12" style={{ color: theme.textMuted }}>
+          <footer className="mt-12 lg:mt-auto" style={{ color: theme.textMuted }}>
             <p className="text-xs">&copy; 2026 Gabriel Keller</p>
           </footer>
-
-          {/* Scroll headroom so the Writing section can scroll all the way up
-              to the terminal pane's top when expanded. Only on desktop and
-              only while blogs are expanded — keeps the home view tight. */}
-          {blogsExpanded && (
-            <div
-              aria-hidden
-              className="hidden lg:block"
-              style={{ height: "calc(100vh - 14rem)" }}
-            />
-          )}
+          </div>
         </div>
       </div>
 
@@ -1032,7 +1023,7 @@ export function InteractiveLayout({
             onThemeChange={handleThemeChange}
             initialAutoCommands={
               initialSectionIntent === "blog"
-                ? ["cat blogs.md && cd blog"]
+                ? ["cd blog && cat README.md"]
                 : ["cat welcome.md"]
             }
             autoTypeRequest={autoTypeRequest}
@@ -1054,7 +1045,7 @@ export function InteractiveLayout({
             borderless
             initialAutoCommands={
               initialSectionIntent === "blog"
-                ? ["cat blogs.md && cd blog"]
+                ? ["cd blog && cat README.md"]
                 : ["cat welcome.md"]
             }
             autoTypeRequest={autoTypeRequest}

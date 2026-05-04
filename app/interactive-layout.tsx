@@ -267,16 +267,16 @@ export function InteractiveLayout({
   const [homeAboveOpen, setHomeAboveOpen] = useState(
     initialSectionIntent !== "blog",
   );
-  // Versioned request so the terminal re-fires even when the same file is
-  // requested multiple times.
+  // Versioned chain request so the terminal re-fires even when the same
+  // commands are requested multiple times.
   const [autoTypeRequest, setAutoTypeRequest] = useState<
-    { file: string; id: number } | null
+    { commands: string[]; id: number } | null
   >(null);
   const autoTypeRequestIdRef = useRef(0);
   const hasShownWelcomeRef = useRef(initialSectionIntent !== "blog");
-  const requestTerminalAutoType = useCallback((file: string) => {
+  const requestTerminalAutoType = useCallback((commands: string[]) => {
     autoTypeRequestIdRef.current += 1;
-    setAutoTypeRequest({ file, id: autoTypeRequestIdRef.current });
+    setAutoTypeRequest({ commands, id: autoTypeRequestIdRef.current });
   }, []);
   const [desktopTooltip, setDesktopTooltip] = useState<{
     key: string;
@@ -655,7 +655,9 @@ export function InteractiveLayout({
       setHomeAboveOpen(true);
       if (!hasShownWelcomeRef.current) {
         hasShownWelcomeRef.current = true;
-        requestTerminalAutoType("welcome.md");
+        requestTerminalAutoType(["cd ..", "cat welcome.md"]);
+      } else {
+        requestTerminalAutoType(["cd .."]);
       }
       if (window.location.pathname === "/blog") {
         window.history.pushState({ section: "home" }, "", "/");
@@ -665,7 +667,7 @@ export function InteractiveLayout({
     }
     setBlogsExpanded(true);
     setHomeAboveOpen(false);
-    requestTerminalAutoType("blogs.md");
+    requestTerminalAutoType(["clear", "cat blogs.md", "cd blog"]);
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
       syncDocumentTitle();
@@ -685,7 +687,9 @@ export function InteractiveLayout({
         setHomeAboveOpen(true);
         if (!hasShownWelcomeRef.current) {
           hasShownWelcomeRef.current = true;
-          requestTerminalAutoType("welcome.md");
+          requestTerminalAutoType(["cd ..", "cat welcome.md"]);
+        } else {
+          requestTerminalAutoType(["cd .."]);
         }
       }
       syncDocumentTitle();
@@ -751,7 +755,7 @@ export function InteractiveLayout({
               Writing without any homepage flash above it. */}
           <CollapsiblePrimitive.Root open={homeAboveOpen} onOpenChange={setHomeAboveOpen}>
           <CollapsiblePrimitive.Content
-            className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up"
+            className="-mx-8 px-8 overflow-hidden data-[state=open]:animate-morph-down data-[state=closed]:animate-morph-up data-[state=closed]:opacity-0"
           >
           {/* Header */}
           <header>
@@ -943,7 +947,7 @@ export function InteractiveLayout({
 
             {/* Expanded blog list — Radix Collapsible handles height animation */}
             <CollapsiblePrimitive.Content
-              className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up"
+              className="-mx-8 px-8 overflow-hidden data-[state=open]:animate-morph-down data-[state=closed]:animate-morph-up data-[state=closed]:opacity-0"
             >
               <div>
                 {posts.slice(previewPosts.length).map((post) => {
@@ -1001,7 +1005,11 @@ export function InteractiveLayout({
             onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
             onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
             onThemeChange={handleThemeChange}
-            initialAutoFile={initialSectionIntent === "blog" ? "blogs.md" : "welcome.md"}
+            initialAutoCommands={
+              initialSectionIntent === "blog"
+                ? ["cat blogs.md", "cd blog"]
+                : ["cat welcome.md"]
+            }
             autoTypeRequest={autoTypeRequest}
           />
         </div>
@@ -1019,7 +1027,11 @@ export function InteractiveLayout({
             onExpand={() => {}}
             onThemeChange={handleThemeChange}
             borderless
-            initialAutoFile={initialSectionIntent === "blog" ? "blogs.md" : "welcome.md"}
+            initialAutoCommands={
+              initialSectionIntent === "blog"
+                ? ["cat blogs.md", "cd blog"]
+                : ["cat welcome.md"]
+            }
             autoTypeRequest={autoTypeRequest}
           />
         </div>

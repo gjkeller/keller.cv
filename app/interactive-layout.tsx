@@ -740,6 +740,30 @@ export function InteractiveLayout({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [requestTerminalAutoType, scrollToHome, scrollToWriting]);
 
+  // While expanded, clamp window.scrollY so the user cannot scroll above the
+  // writing target (which would reveal the visibility:hidden home content's
+  // empty layout band). Disabled briefly during the in-flight transition so
+  // the smooth-scroll animation isn't fighting our clamp.
+  useEffect(() => {
+    if (!blogsExpanded) return;
+    let active = false;
+    const enable = window.setTimeout(() => {
+      active = true;
+    }, 900);
+    const onScroll = () => {
+      if (!active) return;
+      const target = computeWritingScrollTarget();
+      if (window.scrollY < target - 1) {
+        window.scrollTo({ top: target, behavior: "instant" as ScrollBehavior });
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(enable);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [blogsExpanded, computeWritingScrollTarget]);
+
   return (
     <main
       ref={mainRef}
@@ -998,8 +1022,11 @@ export function InteractiveLayout({
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
           </section>
 
-          <footer className="mt-12 lg:mt-auto" style={{ color: theme.textMuted }}>
-            <p className="text-xs">&copy; 2026 Gabriel Keller</p>
+          <footer
+            className={`pt-6 border-t ${blogsExpanded ? "lg:mt-auto mt-12" : "mt-12"}`}
+            style={{ borderColor: theme.border }}
+          >
+            <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>
           </footer>
           </div>
         </div>

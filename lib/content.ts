@@ -127,5 +127,20 @@ export function getAllTerminalFiles(): { files: Record<string, string>; urls: Re
     if (data.url) urls[`projects/${slug}.md`] = data.url as string;
   }
 
+  // Static blog/ files (e.g. README.md). Blog post entries themselves are
+  // synthesised from the MDX content in app/interactive-layout.tsx; this
+  // path covers the static intro/READMEs that live in content/terminal/blog/.
+  const blogDir = join(TERMINAL_DIR, "blog");
+  if (existsSync(blogDir)) {
+    for (const name of readdirSync(blogDir)) {
+      const full = join(blogDir, name);
+      if (statSync(full).isFile() && name.endsWith(".md")) {
+        const raw = readFileSync(full, "utf-8");
+        const { content } = matter(raw);
+        files[`blog/${name}`] = content.trimEnd();
+      }
+    }
+  }
+
   return { files, urls };
 }

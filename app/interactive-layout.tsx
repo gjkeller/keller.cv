@@ -947,13 +947,17 @@ export function InteractiveLayout({
           <hr className="my-8" style={{ borderColor: theme.border }} />
           </div>
 
-          {/* Writing + footer block: pinned at exactly the terminal pane's
-              height (80vh on desktop) so when the user scrolls to the
-              writing-target, Writing aligns with the terminal top and the
-              footer aligns with the terminal bottom. The flex layout pushes
-              the footer to the bottom of this 80vh region while keeping
-              Writing anchored at its top. */}
-          <div className="lg:flex lg:flex-col lg:min-h-[80vh]">
+          {/* Writing + footer block. On home, the footer flows naturally
+              right after the preview posts (no padding gap). On expanded,
+              the block is pinned to the terminal pane's height (80vh) and
+              uses flex to push the footer to its bottom — Writing aligns
+              with the terminal top, footer aligns with the terminal
+              bottom. */}
+          <div
+            className={
+              blogsExpanded ? "lg:flex lg:flex-col lg:min-h-[80vh]" : ""
+            }
+          >
           <section ref={writingSectionRef}>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>

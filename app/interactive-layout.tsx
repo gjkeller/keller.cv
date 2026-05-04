@@ -1,12 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect as useBrowserLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+
+// useLayoutEffect warns during SSR; fall back to useEffect on the server.
+const useLayoutEffect =
+  typeof window === "undefined" ? useEffect : useBrowserLayoutEffect;
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
 import { useTheme } from "@/lib/theme-context";
 import { getCalApi } from "@calcom/embed-react";
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
 import { Terminal } from "./terminal";
 import { renderMarkdown, type MdStyles } from "@/lib/render-md";
@@ -264,9 +274,6 @@ export function InteractiveLayout({
   const [blogsExpanded, setBlogsExpanded] = useState(
     initialSectionIntent === "blog",
   );
-  const [homeAboveOpen, setHomeAboveOpen] = useState(
-    initialSectionIntent !== "blog",
-  );
   // Versioned chain request so the terminal re-fires even when the same
   // commands are requested multiple times.
   const [autoTypeRequest, setAutoTypeRequest] = useState<
@@ -288,6 +295,7 @@ export function InteractiveLayout({
   const clickKeyRef = useRef<string | null>(null);
   const singleClickCountRef = useRef(0);
   const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
+  const writingSectionRef = useRef<HTMLElement | null>(null);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
   const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
   useEffect(() => {
@@ -645,6 +653,24 @@ export function InteractiveLayout({
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
 
+  // Compute the window.scrollY offset at which the Writing heading sits at
+  // the very top of the viewport (so all home content above is scrolled
+  // completely out of view).
+  const computeWritingScrollTarget = useCallback(() => {
+    const heading = writingSectionRef.current;
+    if (!heading) return 0;
+    const headingTop = heading.getBoundingClientRect().top;
+    return Math.max(0, window.scrollY + headingTop);
+  }, []);
+
+  const scrollToWriting = useCallback((behavior: ScrollBehavior = "smooth") => {
+    window.scrollTo({ top: computeWritingScrollTarget(), behavior });
+  }, [computeWritingScrollTarget]);
+
+  const scrollToHome = useCallback((behavior: ScrollBehavior = "smooth") => {
+    window.scrollTo({ top: 0, behavior });
+  }, []);
+
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
       window.open("/blog", "_blank", "noopener,noreferrer");
@@ -652,10 +678,10 @@ export function InteractiveLayout({
     }
     if (blogsExpanded) {
       setBlogsExpanded(false);
-      setHomeAboveOpen(true);
+      scrollToHome("smooth");
       if (!hasShownWelcomeRef.current) {
         hasShownWelcomeRef.current = true;
-        requestTerminalAutoType(["cd ..", "cat welcome.md"]);
+        requestTerminalAutoType(["cd .. && cat welcome.md"]);
       } else {
         requestTerminalAutoType(["cd .."]);
       }
@@ -666,28 +692,39 @@ export function InteractiveLayout({
       return;
     }
     setBlogsExpanded(true);
-    setHomeAboveOpen(false);
-    requestTerminalAutoType(["clear", "cat blogs.md", "cd blog"]);
+    requestTerminalAutoType(["clear && cat blogs.md && cd blog"]);
+    // Scroll on the next frame so the (now-expanded) blog list is in the DOM
+    // and the Writing heading's offset can include any newly-rendered posts.
+    requestAnimationFrame(() => scrollToWriting("smooth"));
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
       syncDocumentTitle();
     }
-  }, [blogsExpanded, requestTerminalAutoType]);
+  }, [blogsExpanded, requestTerminalAutoType, scrollToHome, scrollToWriting]);
 
-  // Direct /blog navigation: home content is unmounted via Radix Collapsible
-  // so Writing is naturally at the top of the document — no scroll needed.
+  // Direct /blog cold load: instantly scroll so Writing aligns with the
+  // terminal-pane top, before paint, so the user never sees the home content.
+  const didInitialScrollRef = useRef(false);
+  useLayoutEffect(() => {
+    if (initialSectionIntent !== "blog" || didInitialScrollRef.current) return;
+    didInitialScrollRef.current = true;
+    // rAF so refs are populated.
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: computeWritingScrollTarget(), behavior: "instant" as ScrollBehavior });
+    });
+  }, [initialSectionIntent, computeWritingScrollTarget]);
 
   useEffect(() => {
     const handlePopState = () => {
       if (window.location.pathname === "/blog") {
         setBlogsExpanded(true);
-        setHomeAboveOpen(false);
+        requestAnimationFrame(() => scrollToWriting("smooth"));
       } else {
         setBlogsExpanded(false);
-        setHomeAboveOpen(true);
+        scrollToHome("smooth");
         if (!hasShownWelcomeRef.current) {
           hasShownWelcomeRef.current = true;
-          requestTerminalAutoType(["cd ..", "cat welcome.md"]);
+          requestTerminalAutoType(["cd .. && cat welcome.md"]);
         } else {
           requestTerminalAutoType(["cd .."]);
         }
@@ -696,7 +733,7 @@ export function InteractiveLayout({
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [requestTerminalAutoType]);
+  }, [requestTerminalAutoType, scrollToHome, scrollToWriting]);
 
   return (
     <main
@@ -741,7 +778,7 @@ export function InteractiveLayout({
 
       {/* Content column — centered on small screens, left-aligned when terminal visible on lg */}
       <div
-        className={`px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`px-8 pt-16 sm:pt-24 pb-16 sm:pb-24 lg:pb-[10vh] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           terminalOpen && !terminalFullscreen ? "lg:max-w-[50vw]" : ""
         }`}
         style={{
@@ -749,14 +786,7 @@ export function InteractiveLayout({
           pointerEvents: terminalFullscreen ? "none" : "auto",
         }}
       >
-        <div className="max-w-[480px] mx-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
-          {/* Home-only sections (header, Currently, Projects). Collapses to
-              height 0 when navigating directly to /blog so the page lands on
-              Writing without any homepage flash above it. */}
-          <CollapsiblePrimitive.Root open={homeAboveOpen} onOpenChange={setHomeAboveOpen}>
-          <CollapsiblePrimitive.Content
-            className="-mx-8 px-8 overflow-hidden data-[state=open]:animate-morph-down data-[state=closed]:animate-morph-up data-[state=closed]:opacity-0"
-          >
+        <div className="max-w-[480px] mx-auto">
           {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
@@ -901,12 +931,12 @@ export function InteractiveLayout({
           </Section>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
-          </CollapsiblePrimitive.Content>
-          </CollapsiblePrimitive.Root>
 
-          {/* Writing */}
-          <CollapsiblePrimitive.Root open={blogsExpanded} onOpenChange={setBlogsExpanded} asChild>
-          <section>
+          {/* Writing — always rendered; on /blog the full list shows, on /
+              only previewPosts. The transition between states is a pure
+              window scroll (handled by handleViewAllClick) so the whole
+              column reads as one continuous page. */}
+          <section ref={writingSectionRef}>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
               <button
@@ -918,9 +948,9 @@ export function InteractiveLayout({
                 {blogsExpanded ? "\u2190 Back to home" : "View all \u2192"}
               </button>
             </div>
-            {previewPosts.length > 0 ? (
+            {(blogsExpanded ? posts : previewPosts).length > 0 ? (
               <div>
-                {previewPosts.map((post) => {
+                {(blogsExpanded ? posts : previewPosts).map((post) => {
                   const key = `post-${post.slug}`;
                   const isMobileOpen = mobileExpanded === key;
                   return (
@@ -944,44 +974,22 @@ export function InteractiveLayout({
                 })}
               </div>
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
-
-            {/* Expanded blog list — Radix Collapsible handles height animation */}
-            <CollapsiblePrimitive.Content
-              className="-mx-8 px-8 overflow-hidden data-[state=open]:animate-morph-down data-[state=closed]:animate-morph-up data-[state=closed]:opacity-0"
-            >
-              <div>
-                {posts.slice(previewPosts.length).map((post) => {
-                  const key = `post-${post.slug}`;
-                  const isMobileOpen = mobileExpanded === key;
-                  return (
-                    <div key={post.slug}>
-                      <div className="relative hidden lg:block">
-                        <button onClick={(e) => handleClick(e, "post", post.slug, `/blog/${post.slug}`)} className={`${cardClass} ghost-card flex items-baseline justify-between gap-4`} style={cardStyle}>
-                          <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
-                          <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
-                        </button>
-                      </div>
-                      <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-baseline justify-between gap-4`} style={cardStyle}>
-                        <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
-                        <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
-                      </button>
-                      <MobileDetail open={isMobileOpen}>
-                        <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{post.description || post.content.slice(0, 200)}</p>
-                        <a href={`/blog/${post.slug}`} className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Read more &rarr;</a>
-                      </MobileDetail>
-                    </div>
-                  );
-                })}
-
-                <BearBalloonGraphic color={theme.textMuted} isDark={theme.isDark} />
-              </div>
-            </CollapsiblePrimitive.Content>
           </section>
-          </CollapsiblePrimitive.Root>
 
-          <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
-            <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>
+          <footer className="mt-12" style={{ color: theme.textMuted }}>
+            <p className="text-xs">&copy; 2026 Gabriel Keller</p>
           </footer>
+
+          {/* Scroll headroom so the Writing section can scroll all the way up
+              to the terminal pane's top when expanded. Only on desktop and
+              only while blogs are expanded — keeps the home view tight. */}
+          {blogsExpanded && (
+            <div
+              aria-hidden
+              className="hidden lg:block"
+              style={{ height: "calc(100vh - 14rem)" }}
+            />
+          )}
         </div>
       </div>
 
@@ -1007,7 +1015,7 @@ export function InteractiveLayout({
             onThemeChange={handleThemeChange}
             initialAutoCommands={
               initialSectionIntent === "blog"
-                ? ["cat blogs.md", "cd blog"]
+                ? ["cat blogs.md && cd blog"]
                 : ["cat welcome.md"]
             }
             autoTypeRequest={autoTypeRequest}
@@ -1029,7 +1037,7 @@ export function InteractiveLayout({
             borderless
             initialAutoCommands={
               initialSectionIntent === "blog"
-                ? ["cat blogs.md", "cd blog"]
+                ? ["cat blogs.md && cd blog"]
                 : ["cat welcome.md"]
             }
             autoTypeRequest={autoTypeRequest}
@@ -1056,24 +1064,6 @@ function MobileDetail({ open, children }: { open: boolean; children: React.React
   return (
     <div className={`lg:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
       <div className="pb-3 pt-1">{children}</div>
-    </div>
-  );
-}
-
-function BearBalloonGraphic({ color, isDark }: { color: string; isDark: boolean }) {
-  return (
-    <div
-      className="flex flex-col items-center justify-center select-none py-12"
-    >
-      <img
-        src="/images/bear-balloon.png"
-        alt="Teddy bear watching a balloon float away"
-        width={120}
-        height={206}
-        style={{ mixBlendMode: isDark ? "screen" : "luminosity" }}
-        draggable={false}
-      />
-      <p className="text-xs mt-6" style={{ color }}>No more posts</p>
     </div>
   );
 }

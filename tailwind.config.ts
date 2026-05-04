@@ -97,22 +97,12 @@ const config: Config = {
           from: { height: "var(--radix-collapsible-content-height)" },
           to: { height: "0" },
         },
-        "morph-down": {
-          from: { height: "0", opacity: "0" },
-          to: { height: "var(--radix-collapsible-content-height)", opacity: "1" },
-        },
-        "morph-up": {
-          from: { height: "var(--radix-collapsible-content-height)", opacity: "1" },
-          to: { height: "0", opacity: "0" },
-        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "collapsible-down": "collapsible-down 400ms cubic-bezier(0.22,1,0.36,1)",
         "collapsible-up": "collapsible-up 300ms cubic-bezier(0.22,1,0.36,1)",
-        "morph-down": "morph-down 500ms cubic-bezier(0.22,1,0.36,1)",
-        "morph-up": "morph-up 500ms cubic-bezier(0.22,1,0.36,1)",
       },
       typography: {
         DEFAULT: {

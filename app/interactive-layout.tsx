@@ -276,7 +276,6 @@ export function InteractiveLayout({
     { commands: string[]; id: number } | null
   >(null);
   const autoTypeRequestIdRef = useRef(0);
-  const hasShownWelcomeRef = useRef(initialSectionIntent !== "blog");
   const requestTerminalAutoType = useCallback((commands: string[]) => {
     autoTypeRequestIdRef.current += 1;
     setAutoTypeRequest({ commands, id: autoTypeRequestIdRef.current });
@@ -740,12 +739,7 @@ export function InteractiveLayout({
     }
     if (blogsExpanded) {
       collapseToHome();
-      if (!hasShownWelcomeRef.current) {
-        hasShownWelcomeRef.current = true;
-        requestTerminalAutoType(["cd .. && cat welcome.md"]);
-      } else {
-        requestTerminalAutoType(["cd .."]);
-      }
+      requestTerminalAutoType(["clear && cd .. && cat welcome.md"]);
       if (window.location.pathname === "/blog") {
         window.history.pushState({ section: "home" }, "", "/");
         syncDocumentTitle();
@@ -769,12 +763,7 @@ export function InteractiveLayout({
         if (!blogsExpanded) expandToBlogs();
       } else {
         if (blogsExpanded) collapseToHome();
-        if (!hasShownWelcomeRef.current) {
-          hasShownWelcomeRef.current = true;
-          requestTerminalAutoType(["cd .. && cat welcome.md"]);
-        } else {
-          requestTerminalAutoType(["cd .."]);
-        }
+        requestTerminalAutoType(["clear && cd .. && cat welcome.md"]);
       }
       syncDocumentTitle();
     };

@@ -681,17 +681,27 @@ export function InteractiveLayout({
   }, []);
 
   // Custom rAF scroll animation. (See SCROLL_DURATION_MS comment for why we
-  // don't just use `behavior: "smooth"`.)
+  // don't just use `behavior: "smooth"`.) Clamps the requested target to the
+  // currently scrollable range so that on short viewports (mobile) the
+  // animation still runs over the *full* duration covering whatever distance
+  // is available — without a clamped target the rAF keeps requesting Y
+  // values past the document end and the browser silently caps them, which
+  // visually freezes the scroll partway through the easing curve.
   const animateScrollTo = useCallback(
     (targetY: number, durationMs: number = SCROLL_DURATION_MS) => {
       if (animatedScrollRef.current != null) {
         cancelAnimationFrame(animatedScrollRef.current);
         animatedScrollRef.current = null;
       }
+      const maxScroll = Math.max(
+        0,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      const clampedTarget = Math.max(0, Math.min(targetY, maxScroll));
       const startY = window.scrollY;
-      const delta = targetY - startY;
+      const delta = clampedTarget - startY;
       if (Math.abs(delta) < 1 || durationMs <= 0) {
-        window.scrollTo({ top: targetY });
+        window.scrollTo({ top: clampedTarget });
         return;
       }
       const startTime = performance.now();

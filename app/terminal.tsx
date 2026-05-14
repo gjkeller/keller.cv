@@ -18,14 +18,35 @@ interface TerminalProps {
   onThemeChange?: (name: string) => void;
   borderless?: boolean;
   sessionKey?: string;
-  /** Commands auto-typed in sequence on first paint of a fresh session. */
+  /**
+   * Commands auto-typed in sequence on first paint of a fresh session.
+   * Each entry may itself be an `&&`-separated chain like
+   * `"cd blog && cat README.md"`; see the auto-type lifecycle comment below.
+   */
   initialAutoCommands?: string[];
   /**
-   * Externally-driven command chain (e.g. `["clear", "cat blogs.md", "cd blog"]`).
-   * Increment `id` to retrigger; set to `null` for no request.
+   * Externally-driven command chain. Each entry is typed by the typewriter
+   * verbatim, then executed (with `&&` chaining honoured). Increment `id` to
+   * retrigger even when `commands` is unchanged; set to `null` for no request.
+   *
+   * Example: `{ commands: ["clear && cd blog && cat README.md"], id: 7 }`.
    */
   autoTypeRequest?: { commands: string[]; id: number } | null;
 }
+
+/* ── Auto-type chain types ──────────────────────────────────────────── */
+
+type SideEffect = "none" | "clear" | { kind: "cd"; newCwd: string };
+
+type ChainPart = { command: string; output: string; sideEffect: SideEffect };
+
+type ChainPlan = {
+  parts: ChainPart[];
+  /** Verbatim command line as the user saw it typed (e.g. with `&&`). */
+  typedLine: string;
+  /** Prompt that was active when the line started typing. */
+  promptAtType: string;
+};
 
 export { THEME_NAMES };
 
@@ -678,13 +699,14 @@ export function Terminal({
 
   /* ── Auto-type lifecycle ──
    * Each entry in autoQueueRef is a single command line which may contain
-   * `&&` chaining (e.g. `clear && cat blogs.md && cd blog`). The whole line
-   * is typed verbatim by the typewriter; once the user-visible typing
-   * finishes we execute each part of the chain in order, applying side
-   * effects (cd / clear) and committing one history entry per non-clear
-   * part.
+   * `&&` chaining (e.g. `clear && cd blog && cat README.md`). The whole
+   * line is typed verbatim by the typewriter. While typing the command
+   * line, any `clear` is applied immediately on completion (real-shell
+   * ordering). Once the line+output have streamed, we commit a single
+   * history entry whose `command` is the raw chain text the user saw.
+   * `cd`'s side effect is applied at commit so the next prompt reflects
+   * the new cwd.
    */
-  type SideEffect = "none" | "clear" | { kind: "cd"; newCwd: string };
 
   const resolveSinglePart = (
     raw: string,
@@ -740,12 +762,6 @@ export function Terminal({
   };
 
   // Plan generated when a chain begins typing; consumed at commit time.
-  type ChainPart = { command: string; output: string; sideEffect: SideEffect };
-  type ChainPlan = {
-    parts: ChainPart[];
-    typedLine: string;
-    promptAtType: string;
-  };
   const chainPlanRef = useRef<ChainPlan | null>(null);
 
   const advanceAutoQueueRef = useRef<() => void>(() => {});
@@ -877,7 +893,11 @@ export function Terminal({
     advanceAutoQueueRef.current();
   }, [storageReady, history.length, initialAutoCommands]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // React to clicks from left column
+  // Click-to-cat: when the parent sets `activeFile` (driven by clicks on
+  // the left column's work / project / blog post cards), kick off an
+  // immediate `cat <file>` typewriter run. This path bypasses the chain
+  // queue: there's no chainPlanRef, so commitAndAdvanceRef's no-plan
+  // branch falls through to a plain history push when typing finishes.
   useEffect(() => {
     if (!activeFile) return;
     const fileKey = activeFile.command;
@@ -887,7 +907,8 @@ export function Terminal({
     const fileName = fileKey.replace("cat ", "");
     setDynamicFiles((prev) => ({ ...prev, [fileName]: activeFile.content }));
 
-    // Exit agent mode if active
+    // Exit agent mode if active so the chat session doesn't capture the
+    // upcoming auto-typed cat as user input.
     if (chatMode) {
       if (isStreaming) abortRef.current?.abort();
       setChatMode(false);
@@ -895,6 +916,8 @@ export function Terminal({
       setHistory((prev) => [...prev, { prompt: "user> ", command: "", output: "Leaving agent mode." }]);
     }
 
+    // If a chain is in flight, commit whatever was typed so far so it's
+    // preserved in scrollback before we replace the typewriter state.
     if (autoPhase !== "idle" && (autoCommand || autoOutput)) {
       setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
     }
@@ -912,8 +935,8 @@ export function Terminal({
     if (urlMatch) setDynamicUrls((prev) => ({ ...prev, [fileName]: urlMatch[1] }));
   }, [activeFile]);
 
-  // Externally-requested command chain (e.g. `clear && cat blogs.md && cd blog`
-  // when navigating between /blog and /).
+  // Externally-requested command chain (e.g.
+  // `clear && cd blog && cat README.md` when navigating between / and /blog).
   const lastAutoTypeReqIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (!autoTypeRequest) return;

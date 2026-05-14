@@ -55,6 +55,13 @@ function ghostCardStyle(theme: Theme) {
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const DESKTOP_OPEN_HINT_MS = 1000;
+// Duration (ms) of the View-all / Back-to-home smooth-scroll animation.
+// Browser-default `behavior: "smooth"` runs ~500–800ms which felt sluggish;
+// 320ms with an ease-out-cubic curve is snappier without losing the smoothness.
+const SCROLL_DURATION_MS = 320;
+// Grace period added on top of SCROLL_DURATION_MS before the home content
+// is dropped from layout (display:none), so the scroll has time to settle.
+const HOME_COLLAPSE_GRACE_MS = 40;
 
 // Map pathname → document title. Used to keep the tab title in sync with
 // the URL bar whenever we mutate history directly (pushState/replaceState),
@@ -290,7 +297,20 @@ export function InteractiveLayout({
   const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
   const writingSectionRef = useRef<HTMLElement | null>(null);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
+  const animatedScrollRef = useRef<number | null>(null);
   const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
+  // Commands the terminal should auto-type on first paint. Fixed for the
+  // lifetime of this component (only depends on the SSR'd intent), so the
+  // useMemo here is mostly for stable identity across renders — the Terminal
+  // gates its initial auto-type on a one-shot ref, but stable identity also
+  // helps with downstream React.memo / dep arrays.
+  const initialAutoCommands = useMemo(
+    () =>
+      initialSectionIntent === "blog"
+        ? ["cd blog && cat README.md"]
+        : ["cat welcome.md"],
+    [initialSectionIntent],
+  );
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
     const desktop = mql.matches;
@@ -302,9 +322,12 @@ export function InteractiveLayout({
     return () => mql.removeEventListener("change", handler);
   }, []);
 
+  // Single unmount cleanup for all timers / rAFs / external listeners.
   useEffect(
     () => () => {
       if (tooltipTimeoutRef.current) window.clearTimeout(tooltipTimeoutRef.current);
+      if (homeCollapseTimerRef.current) window.clearTimeout(homeCollapseTimerRef.current);
+      if (animatedScrollRef.current != null) cancelAnimationFrame(animatedScrollRef.current);
       calWidthSyncCleanupRef.current?.();
       calWidthSyncCleanupRef.current = null;
     },
@@ -643,10 +666,9 @@ export function InteractiveLayout({
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
 
-  // Compute the window.scrollY offset at which the Writing heading aligns
-  // with the terminal pane's top edge. A fixed-position mask covers the
-  // viewport area above the terminal so any home content in that band is
-  // hidden while expanded.
+  // Compute the window.scrollY at which the Writing heading aligns with the
+  // terminal pane's top edge — i.e. the natural target for the View-all
+  // expand transition.
   const computeWritingScrollTarget = useCallback(() => {
     const heading = writingSectionRef.current;
     if (!heading) return 0;
@@ -658,36 +680,36 @@ export function InteractiveLayout({
     return Math.max(0, window.scrollY + headingTop - desiredTop);
   }, []);
 
-  // Custom rAF scroll animation. The browser's native `behavior: "smooth"`
-  // uses an engine-defined duration (~500–800ms) that feels sluggish for
-  // this transition. A fixed shorter duration with an ease-out curve is
-  // snappier.
-  const SCROLL_DURATION_MS = 320;
-  const animatedScrollRef = useRef<number | null>(null);
-  const animateScrollTo = useCallback((targetY: number, durationMs: number = SCROLL_DURATION_MS) => {
-    if (animatedScrollRef.current != null) {
-      cancelAnimationFrame(animatedScrollRef.current);
-      animatedScrollRef.current = null;
-    }
-    const startY = window.scrollY;
-    const delta = targetY - startY;
-    if (Math.abs(delta) < 1 || durationMs <= 0) {
-      window.scrollTo({ top: targetY });
-      return;
-    }
-    const startTime = performance.now();
-    const ease = (t: number) => 1 - Math.pow(1 - t, 3); // ease-out cubic
-    const step = (now: number) => {
-      const t = Math.min(1, (now - startTime) / durationMs);
-      window.scrollTo({ top: startY + delta * ease(t) });
-      if (t < 1) {
-        animatedScrollRef.current = requestAnimationFrame(step);
-      } else {
+  // Custom rAF scroll animation. (See SCROLL_DURATION_MS comment for why we
+  // don't just use `behavior: "smooth"`.)
+  const animateScrollTo = useCallback(
+    (targetY: number, durationMs: number = SCROLL_DURATION_MS) => {
+      if (animatedScrollRef.current != null) {
+        cancelAnimationFrame(animatedScrollRef.current);
         animatedScrollRef.current = null;
       }
-    };
-    animatedScrollRef.current = requestAnimationFrame(step);
-  }, []);
+      const startY = window.scrollY;
+      const delta = targetY - startY;
+      if (Math.abs(delta) < 1 || durationMs <= 0) {
+        window.scrollTo({ top: targetY });
+        return;
+      }
+      const startTime = performance.now();
+      // Ease-out cubic: fast at the start, settles softly at the end.
+      const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+      const step = (now: number) => {
+        const t = Math.min(1, (now - startTime) / durationMs);
+        window.scrollTo({ top: startY + delta * ease(t) });
+        if (t < 1) {
+          animatedScrollRef.current = requestAnimationFrame(step);
+        } else {
+          animatedScrollRef.current = null;
+        }
+      };
+      animatedScrollRef.current = requestAnimationFrame(step);
+    },
+    [],
+  );
 
   // Sequence the expand transition: smooth-scroll to writing target with
   // home still in document flow, then drop home from layout (display:none)
@@ -705,10 +727,12 @@ export function InteractiveLayout({
     );
     homeCollapseTimerRef.current = window.setTimeout(() => {
       setHomeCollapsed(true);
-      // Once home is gone the doc bottom-aligns naturally; reset to top.
+      // Once home is gone the doc shrinks to just writing+footer; reset
+      // scrollY to the new top so the natural scrollbar reflects only what's
+      // visible (no "phantom" headroom from where the home content used to be).
       window.scrollTo({ top: 0 });
       homeCollapseTimerRef.current = null;
-    }, SCROLL_DURATION_MS + 40);
+    }, SCROLL_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
   }, [animateScrollTo, computeWritingScrollTarget]);
 
   // Sequence the collapse transition: re-mount home, jump scrollY to the
@@ -749,15 +773,20 @@ export function InteractiveLayout({
     }
   }, [blogsExpanded, requestTerminalAutoType, expandToBlogs, collapseToHome]);
 
-  // Direct /blog cold load: home is already display:none on first paint, so
-  // writing is naturally at the top of the document — no scroll needed.
-
+  // History-driven sync: a back/forward navigation between the home
+  // (`/`, `/call`, etc.) and `/blog` should run the same expand/collapse
+  // transition that clicking "View all" or "Back to home" does. We only fire
+  // the terminal reset chain when we actually transition between the two
+  // modes, so an unrelated popstate (e.g. /call → /) doesn't spuriously
+  // run `clear && cd .. && cat welcome.md`.
   useEffect(() => {
     const handlePopState = () => {
-      if (window.location.pathname === "/blog") {
-        if (!blogsExpanded) expandToBlogs();
-      } else {
-        if (blogsExpanded) collapseToHome();
+      const goingToBlog = window.location.pathname === "/blog";
+      if (goingToBlog && !blogsExpanded) {
+        expandToBlogs();
+        requestTerminalAutoType(["clear && cd blog && cat README.md"]);
+      } else if (!goingToBlog && blogsExpanded) {
+        collapseToHome();
         requestTerminalAutoType(["clear && cd .. && cat welcome.md"]);
       }
       syncDocumentTitle();
@@ -765,18 +794,6 @@ export function InteractiveLayout({
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [requestTerminalAutoType, blogsExpanded, expandToBlogs, collapseToHome]);
-
-  useEffect(
-    () => () => {
-      if (homeCollapseTimerRef.current) {
-        window.clearTimeout(homeCollapseTimerRef.current);
-      }
-      if (animatedScrollRef.current != null) {
-        cancelAnimationFrame(animatedScrollRef.current);
-      }
-    },
-    [],
-  );
 
   return (
     <main
@@ -1072,11 +1089,7 @@ export function InteractiveLayout({
             onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
             onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
             onThemeChange={handleThemeChange}
-            initialAutoCommands={
-              initialSectionIntent === "blog"
-                ? ["cd blog && cat README.md"]
-                : ["cat welcome.md"]
-            }
+            initialAutoCommands={initialAutoCommands}
             autoTypeRequest={autoTypeRequest}
           />
         </div>
@@ -1094,11 +1107,7 @@ export function InteractiveLayout({
             onExpand={() => {}}
             onThemeChange={handleThemeChange}
             borderless
-            initialAutoCommands={
-              initialSectionIntent === "blog"
-                ? ["cd blog && cat README.md"]
-                : ["cat welcome.md"]
-            }
+            initialAutoCommands={initialAutoCommands}
             autoTypeRequest={autoTypeRequest}
           />
         </div>

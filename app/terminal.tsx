@@ -795,6 +795,16 @@ export function Terminal({
     const plan = chainPlanRef.current;
     chainPlanRef.current = null;
     if (!plan) {
+      // Legacy auto-type path (e.g. clicks on a blog post in the left
+      // column drive `activeFile`, which sets autoCommand/autoOutput
+      // directly without enqueueing a chain). Commit the in-flight entry
+      // so it persists in scrollback once the typewriter finishes.
+      if (autoCommand) {
+        const cmd = autoCommand;
+        const output = autoOutput;
+        const promptAtCommit = currentPrompt;
+        setHistory((prev) => [...prev, { prompt: promptAtCommit, command: cmd, output }]);
+      }
       advanceAutoQueueRef.current();
       return;
     }

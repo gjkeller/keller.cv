@@ -1,17 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useLayoutEffect as useBrowserLayoutEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
-
-// useLayoutEffect warns during SSR; fall back to useEffect on the server.
-const useLayoutEffect =
-  typeof window === "undefined" ? useEffect : useBrowserLayoutEffect;
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
@@ -274,6 +263,13 @@ export function InteractiveLayout({
   const [blogsExpanded, setBlogsExpanded] = useState(
     initialSectionIntent === "blog",
   );
+  // True once the home content should be removed from layout (display:none).
+  // Lags `blogsExpanded` so the smooth-scroll-to-writing animation has a
+  // chance to play before the document shrinks underneath it.
+  const [homeCollapsed, setHomeCollapsed] = useState(
+    initialSectionIntent === "blog",
+  );
+  const homeCollapseTimerRef = useRef<number | null>(null);
   // Versioned chain request so the terminal re-fires even when the same
   // commands are requested multiple times.
   const [autoTypeRequest, setAutoTypeRequest] = useState<
@@ -672,9 +668,46 @@ export function InteractiveLayout({
     window.scrollTo({ top: computeWritingScrollTarget(), behavior });
   }, [computeWritingScrollTarget]);
 
-  const scrollToHome = useCallback((behavior: ScrollBehavior = "smooth") => {
-    window.scrollTo({ top: 0, behavior });
-  }, []);
+  // Sequence the expand transition: smooth-scroll to writing target with
+  // home still in document flow, then drop home from layout (display:none)
+  // once the scroll has settled — at which point the doc shrinks to just
+  // writing + footer and the natural scrollbar takes over.
+  const expandToBlogs = useCallback(() => {
+    if (homeCollapseTimerRef.current) {
+      window.clearTimeout(homeCollapseTimerRef.current);
+      homeCollapseTimerRef.current = null;
+    }
+    setBlogsExpanded(true);
+    setHomeCollapsed(false);
+    requestAnimationFrame(() => scrollToWriting("smooth"));
+    homeCollapseTimerRef.current = window.setTimeout(() => {
+      setHomeCollapsed(true);
+      // Once home is gone the doc bottom-aligns naturally; reset to top.
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+      homeCollapseTimerRef.current = null;
+    }, 700);
+  }, [scrollToWriting]);
+
+  // Sequence the collapse transition: re-mount home, jump scrollY to the
+  // writing target so the visual position stays put, then smooth-scroll
+  // back to 0 (revealing the home content from above).
+  const collapseToHome = useCallback(() => {
+    if (homeCollapseTimerRef.current) {
+      window.clearTimeout(homeCollapseTimerRef.current);
+      homeCollapseTimerRef.current = null;
+    }
+    setBlogsExpanded(false);
+    setHomeCollapsed(false);
+    requestAnimationFrame(() => {
+      window.scrollTo({
+        top: computeWritingScrollTarget(),
+        behavior: "instant" as ScrollBehavior,
+      });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+  }, [computeWritingScrollTarget]);
 
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
@@ -682,8 +715,7 @@ export function InteractiveLayout({
       return;
     }
     if (blogsExpanded) {
-      setBlogsExpanded(false);
-      scrollToHome("smooth");
+      collapseToHome();
       if (!hasShownWelcomeRef.current) {
         hasShownWelcomeRef.current = true;
         requestTerminalAutoType(["cd .. && cat welcome.md"]);
@@ -696,37 +728,23 @@ export function InteractiveLayout({
       }
       return;
     }
-    setBlogsExpanded(true);
+    expandToBlogs();
     requestTerminalAutoType(["clear && cd blog && cat README.md"]);
-    // Scroll on the next frame so the (now-expanded) blog list is in the DOM
-    // and the Writing heading's offset can include any newly-rendered posts.
-    requestAnimationFrame(() => scrollToWriting("smooth"));
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
       syncDocumentTitle();
     }
-  }, [blogsExpanded, requestTerminalAutoType, scrollToHome, scrollToWriting]);
+  }, [blogsExpanded, requestTerminalAutoType, expandToBlogs, collapseToHome]);
 
-  // Direct /blog cold load: instantly scroll so Writing aligns with the
-  // terminal-pane top, before paint, so the user never sees the home content.
-  const didInitialScrollRef = useRef(false);
-  useLayoutEffect(() => {
-    if (initialSectionIntent !== "blog" || didInitialScrollRef.current) return;
-    didInitialScrollRef.current = true;
-    // rAF so refs are populated.
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: computeWritingScrollTarget(), behavior: "instant" as ScrollBehavior });
-    });
-  }, [initialSectionIntent, computeWritingScrollTarget]);
+  // Direct /blog cold load: home is already display:none on first paint, so
+  // writing is naturally at the top of the document — no scroll needed.
 
   useEffect(() => {
     const handlePopState = () => {
       if (window.location.pathname === "/blog") {
-        setBlogsExpanded(true);
-        requestAnimationFrame(() => scrollToWriting("smooth"));
+        if (!blogsExpanded) expandToBlogs();
       } else {
-        setBlogsExpanded(false);
-        scrollToHome("smooth");
+        if (blogsExpanded) collapseToHome();
         if (!hasShownWelcomeRef.current) {
           hasShownWelcomeRef.current = true;
           requestTerminalAutoType(["cd .. && cat welcome.md"]);
@@ -738,31 +756,16 @@ export function InteractiveLayout({
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [requestTerminalAutoType, scrollToHome, scrollToWriting]);
+  }, [requestTerminalAutoType, blogsExpanded, expandToBlogs, collapseToHome]);
 
-  // While expanded, clamp window.scrollY so the user cannot scroll above the
-  // writing target (which would reveal the visibility:hidden home content's
-  // empty layout band). Disabled briefly during the in-flight transition so
-  // the smooth-scroll animation isn't fighting our clamp.
-  useEffect(() => {
-    if (!blogsExpanded) return;
-    let active = false;
-    const enable = window.setTimeout(() => {
-      active = true;
-    }, 900);
-    const onScroll = () => {
-      if (!active) return;
-      const target = computeWritingScrollTarget();
-      if (window.scrollY < target - 1) {
-        window.scrollTo({ top: target, behavior: "instant" as ScrollBehavior });
+  useEffect(
+    () => () => {
+      if (homeCollapseTimerRef.current) {
+        window.clearTimeout(homeCollapseTimerRef.current);
       }
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.clearTimeout(enable);
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, [blogsExpanded, computeWritingScrollTarget]);
+    },
+    [],
+  );
 
   return (
     <main
@@ -816,12 +819,18 @@ export function InteractiveLayout({
         }}
       >
         <div className="max-w-[480px] mx-auto">
-          {/* Home-only sections: hidden when blogs are expanded so the user
-              can't scroll up to reveal them while keeping their layout
-              footprint (so doc height + scroll math stay stable). */}
+          {/* Home-only sections: removed from layout flow (display:none) when
+              the user has fully transitioned to the expanded /blog view.
+              We use a separate `homeCollapsed` flag (rather than just
+              `blogsExpanded`) so the smooth-scroll animation that runs when
+              expanding has the home content in place to scroll past;
+              `homeCollapsed` flips to true on a timer once the scroll has
+              settled, shrinking the document to just the writing + footer
+              region (scrollbar then reflects only what's visible). */}
           <div
             style={{
-              visibility: blogsExpanded ? "hidden" : "visible",
+              display: homeCollapsed ? "none" : undefined,
+              visibility: blogsExpanded && !homeCollapsed ? "hidden" : "visible",
               pointerEvents: blogsExpanded ? "none" : "auto",
             }}
           >

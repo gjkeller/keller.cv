@@ -55,7 +55,6 @@ function ghostCardStyle(theme: Theme) {
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const DESKTOP_OPEN_HINT_MS = 1000;
-const DESKTOP_CLICK_DELAY_MS = 280;
 
 // Map pathname → document title. Used to keep the tab title in sync with
 // the URL bar whenever we mutate history directly (pushState/replaceState),
@@ -285,7 +284,6 @@ export function InteractiveLayout({
     x: number;
     y: number;
   } | null>(null);
-  const clickTimeoutRef = useRef<number | null>(null);
   const tooltipTimeoutRef = useRef<number | null>(null);
   const clickKeyRef = useRef<string | null>(null);
   const singleClickCountRef = useRef(0);
@@ -306,7 +304,6 @@ export function InteractiveLayout({
 
   useEffect(
     () => () => {
-      if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
       if (tooltipTimeoutRef.current) window.clearTimeout(tooltipTimeoutRef.current);
       calWidthSyncCleanupRef.current?.();
       calWidthSyncCleanupRef.current = null;
@@ -431,11 +428,10 @@ export function InteractiveLayout({
 
   const handleClick = useCallback((e: React.MouseEvent, type: string, id: string, url?: string) => {
     const key = `${type}-${id}`;
+    // Modifier-click or double-click navigates. (For double-click, the first
+    // click of the pair already started catting the file in the terminal —
+    // that's fine, the user is being navigated away anyway.)
     if ((e.metaKey || e.ctrlKey || e.shiftKey || e.detail === 2) && url) {
-      if (clickTimeoutRef.current && clickKeyRef.current === key) {
-        window.clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
       clearDesktopTooltip();
       if (e.metaKey || e.ctrlKey) window.open(url, "_blank");
       else if (url.startsWith("/")) router.push(url);
@@ -443,48 +439,47 @@ export function InteractiveLayout({
       return;
     }
 
-    if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
     clickKeyRef.current = key;
     singleClickCountRef.current += 1;
     if (singleClickCountRef.current >= 3) {
       showDesktopTooltip(key, e.clientX, e.clientY);
     }
-    clickTimeoutRef.current = window.setTimeout(() => {
-      if (activeId === key) {
-        setActiveId(null);
-        setActiveFile(null);
-        return;
-      }
-      setActiveId(key);
 
-      let command: string | null = null;
-      let content: string | null = null;
+    // Single click — cat the file immediately, no debounce delay.
+    if (activeId === key) {
+      setActiveId(null);
+      setActiveFile(null);
+      return;
+    }
+    setActiveId(key);
 
-      if (type === "work") {
-        const item = currentWork.find((w) => w.company === id);
-        if (item) {
-          command = `cat ${item.slug}.md`;
-          content = allFiles[`${item.slug}.md`] ?? null;
-        }
-      } else if (type === "hackathon") {
-        const item = hackathons.find((h) => h.name === id);
-        if (item) {
-          command = `cat projects/${item.slug}.md`;
-          content = allFiles[`projects/${item.slug}.md`] ?? null;
-        }
-      } else if (type === "post") {
-        const post = posts.find((p) => p.slug === id);
-        if (post) {
-          command = `cat blog/${post.slug}.md`;
-          content = allFiles[`blog/${post.slug}.md`] ?? null;
-        }
-      }
+    let command: string | null = null;
+    let content: string | null = null;
 
-      if (command && content) {
-        setActiveFile({ command, content });
-        if (!terminalOpen) setTerminalOpen(true);
+    if (type === "work") {
+      const item = currentWork.find((w) => w.company === id);
+      if (item) {
+        command = `cat ${item.slug}.md`;
+        content = allFiles[`${item.slug}.md`] ?? null;
       }
-    }, DESKTOP_CLICK_DELAY_MS);
+    } else if (type === "hackathon") {
+      const item = hackathons.find((h) => h.name === id);
+      if (item) {
+        command = `cat projects/${item.slug}.md`;
+        content = allFiles[`projects/${item.slug}.md`] ?? null;
+      }
+    } else if (type === "post") {
+      const post = posts.find((p) => p.slug === id);
+      if (post) {
+        command = `cat blog/${post.slug}.md`;
+        content = allFiles[`blog/${post.slug}.md`] ?? null;
+      }
+    }
+
+    if (command && content) {
+      setActiveFile({ command, content });
+      if (!terminalOpen) setTerminalOpen(true);
+    }
   }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen, router, clearDesktopTooltip, showDesktopTooltip]);
 
   const toggleMobile = useCallback((key: string) => {

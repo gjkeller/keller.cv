@@ -810,7 +810,7 @@ export function InteractiveLayout({
 
       {/* Content column — centered on small screens, left-aligned when terminal visible on lg */}
       <div
-        className={`px-8 pt-16 sm:pt-24 pb-16 sm:pb-24 lg:pb-[10vh] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`px-8 pt-16 sm:pt-24 lg:pt-[10vh] pb-16 sm:pb-24 lg:pb-[10vh] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           terminalOpen && !terminalFullscreen ? "lg:max-w-[50vw]" : ""
         }`}
         style={{

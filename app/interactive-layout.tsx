@@ -664,9 +664,36 @@ export function InteractiveLayout({
     return Math.max(0, window.scrollY + headingTop - desiredTop);
   }, []);
 
-  const scrollToWriting = useCallback((behavior: ScrollBehavior = "smooth") => {
-    window.scrollTo({ top: computeWritingScrollTarget(), behavior });
-  }, [computeWritingScrollTarget]);
+  // Custom rAF scroll animation. The browser's native `behavior: "smooth"`
+  // uses an engine-defined duration (~500–800ms) that feels sluggish for
+  // this transition. A fixed shorter duration with an ease-out curve is
+  // snappier.
+  const SCROLL_DURATION_MS = 320;
+  const animatedScrollRef = useRef<number | null>(null);
+  const animateScrollTo = useCallback((targetY: number, durationMs: number = SCROLL_DURATION_MS) => {
+    if (animatedScrollRef.current != null) {
+      cancelAnimationFrame(animatedScrollRef.current);
+      animatedScrollRef.current = null;
+    }
+    const startY = window.scrollY;
+    const delta = targetY - startY;
+    if (Math.abs(delta) < 1 || durationMs <= 0) {
+      window.scrollTo({ top: targetY });
+      return;
+    }
+    const startTime = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3); // ease-out cubic
+    const step = (now: number) => {
+      const t = Math.min(1, (now - startTime) / durationMs);
+      window.scrollTo({ top: startY + delta * ease(t) });
+      if (t < 1) {
+        animatedScrollRef.current = requestAnimationFrame(step);
+      } else {
+        animatedScrollRef.current = null;
+      }
+    };
+    animatedScrollRef.current = requestAnimationFrame(step);
+  }, []);
 
   // Sequence the expand transition: smooth-scroll to writing target with
   // home still in document flow, then drop home from layout (display:none)
@@ -679,14 +706,16 @@ export function InteractiveLayout({
     }
     setBlogsExpanded(true);
     setHomeCollapsed(false);
-    requestAnimationFrame(() => scrollToWriting("smooth"));
+    requestAnimationFrame(() =>
+      animateScrollTo(computeWritingScrollTarget()),
+    );
     homeCollapseTimerRef.current = window.setTimeout(() => {
       setHomeCollapsed(true);
       // Once home is gone the doc bottom-aligns naturally; reset to top.
-      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+      window.scrollTo({ top: 0 });
       homeCollapseTimerRef.current = null;
-    }, 700);
-  }, [scrollToWriting]);
+    }, SCROLL_DURATION_MS + 40);
+  }, [animateScrollTo, computeWritingScrollTarget]);
 
   // Sequence the collapse transition: re-mount home, jump scrollY to the
   // writing target so the visual position stays put, then smooth-scroll
@@ -699,15 +728,10 @@ export function InteractiveLayout({
     setBlogsExpanded(false);
     setHomeCollapsed(false);
     requestAnimationFrame(() => {
-      window.scrollTo({
-        top: computeWritingScrollTarget(),
-        behavior: "instant" as ScrollBehavior,
-      });
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
+      window.scrollTo({ top: computeWritingScrollTarget() });
+      requestAnimationFrame(() => animateScrollTo(0));
     });
-  }, [computeWritingScrollTarget]);
+  }, [animateScrollTo, computeWritingScrollTarget]);
 
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
@@ -762,6 +786,9 @@ export function InteractiveLayout({
     () => () => {
       if (homeCollapseTimerRef.current) {
         window.clearTimeout(homeCollapseTimerRef.current);
+      }
+      if (animatedScrollRef.current != null) {
+        cancelAnimationFrame(animatedScrollRef.current);
       }
     },
     [],

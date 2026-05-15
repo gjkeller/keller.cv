@@ -667,15 +667,16 @@ export function InteractiveLayout({
   }, []);
 
   // Compute the window.scrollY at which the Writing heading aligns with the
-  // terminal pane's top edge — i.e. the natural target for the View-all
-  // expand transition.
+  // terminal pane's top edge (10vh) — i.e. the natural target for the
+  // View-all expand transition. Hard-coded to 10vh rather than reading the
+  // terminal wrapper's bounding rect so it stays consistent with the
+  // post-collapse layout (where the wrapper has `lg:pt-[10vh]`); reading the
+  // wrapper's rect also breaks when the terminal is closed (scale-95
+  // shrinks the rect by ~18px, causing a jump at the end of the animation).
   const computeWritingScrollTarget = useCallback(() => {
     const heading = writingSectionRef.current;
     if (!heading) return 0;
-    const wrapper = terminalWrapperRef.current;
-    const desiredTop = wrapper
-      ? wrapper.getBoundingClientRect().top
-      : window.innerHeight * 0.1;
+    const desiredTop = window.innerHeight * 0.1;
     const headingTop = heading.getBoundingClientRect().top;
     return Math.max(0, window.scrollY + headingTop - desiredTop);
   }, []);
@@ -846,9 +847,12 @@ export function InteractiveLayout({
         }
       `}</style>
 
-      {/* Content column — centered on small screens, left-aligned when terminal visible on lg */}
+      {/* Content column — centered on small screens, left-aligned when
+          terminal visible on lg. The 10vh top/bottom padding is consistent
+          across breakpoints so the smooth-scroll target (10vh) lines up with
+          the post-collapse writing position on every viewport. */}
       <div
-        className={`px-8 pt-16 sm:pt-24 lg:pt-[10vh] pb-16 sm:pb-24 lg:pb-[10vh] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`px-8 pt-[10vh] pb-[10vh] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           terminalOpen && !terminalFullscreen ? "lg:max-w-[50vw]" : ""
         }`}
         style={{
@@ -1020,14 +1024,13 @@ export function InteractiveLayout({
 
           {/* Writing + footer block. On home, the footer flows naturally
               right after the preview posts (no padding gap). On expanded,
-              the block is pinned to the terminal pane's height (80vh) and
-              uses flex to push the footer to its bottom — Writing aligns
-              with the terminal top, footer aligns with the terminal
-              bottom. */}
+              the block is pinned to 80vh on every viewport (combined with
+              the wrapper's pt-[10vh] / pb-[10vh] this makes the document
+              exactly 100vh tall when home is collapsed — no overflow,
+              writing at viewport y=10vh, footer at viewport y=90vh, no
+              jump-at-end on the View-all animation). */}
           <div
-            className={
-              blogsExpanded ? "lg:flex lg:flex-col lg:min-h-[80vh]" : ""
-            }
+            className={blogsExpanded ? "flex flex-col min-h-[80vh]" : ""}
           >
           <section ref={writingSectionRef}>
             <div className="flex items-center justify-between mb-2">
@@ -1070,7 +1073,7 @@ export function InteractiveLayout({
           </section>
 
           <footer
-            className={`pt-6 border-t ${blogsExpanded ? "lg:mt-auto mt-12" : "mt-12"}`}
+            className={`pt-6 border-t ${blogsExpanded ? "mt-auto" : "mt-12"}`}
             style={{ borderColor: theme.border }}
           >
             <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>

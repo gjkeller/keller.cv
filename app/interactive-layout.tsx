@@ -1,6 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect as useReactLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+
+// useLayoutEffect warns during SSR; fall back to useEffect on the server.
+const useLayoutEffect =
+  typeof window === "undefined" ? useEffect : useReactLayoutEffect;
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
@@ -688,14 +699,23 @@ export function InteractiveLayout({
   }, []);
 
   // Distance from the Writing heading's current viewport position down to
-  // the desired terminal-top alignment (10vh). Captured at the moment the
-  // user clicks View-all so the animation knows how far to slide.
+  // the desired top — i.e. the wrapper's effective padding-top. Captured at
+  // the moment the user triggers expand/collapse so the transform
+  // animation knows how far to slide. We read the actual computed
+  // padding-top so the math is correct across responsive breakpoints
+  // (py-16 vs sm:py-24).
+  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
+  const computeDesiredTop = useCallback(() => {
+    const wrap = contentWrapperRef.current;
+    if (!wrap) return window.innerHeight * 0.1;
+    const pt = parseFloat(getComputedStyle(wrap).paddingTop || "0");
+    return pt > 0 ? pt : window.innerHeight * 0.1;
+  }, []);
   const computeWritingTranslateDistance = useCallback(() => {
     const heading = writingSectionRef.current;
     if (!heading) return 0;
-    const desiredTop = window.innerHeight * 0.1;
-    return Math.max(0, heading.getBoundingClientRect().top - desiredTop);
-  }, []);
+    return Math.max(0, heading.getBoundingClientRect().top - computeDesiredTop());
+  }, [computeDesiredTop]);
 
   // Sequence the expand transition. Uses a CSS transform on the column
   // (GPU-composited) instead of window.scrollTo so each animation frame is a
@@ -736,79 +756,65 @@ export function InteractiveLayout({
     }, SCROLL_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
   }, [computeWritingTranslateDistance]);
 
-  // Compute the window.scrollY at which the Writing heading aligns with
-  // viewport y=10vh given the *current* layout. Used by the collapse
-  // animation so that, immediately after re-mounting the home content,
-  // we can jump scrollY to a position that keeps writing visually pinned
-  // before animating the page back down to scrollY=0.
-  const computeWritingScrollTarget = useCallback(() => {
-    const heading = writingSectionRef.current;
-    if (!heading) return 0;
-    const desiredTop = window.innerHeight * 0.1;
-    const headingTop = heading.getBoundingClientRect().top;
-    return Math.max(0, window.scrollY + headingTop - desiredTop);
-  }, []);
-
-  // Custom rAF scroll animation, used for the collapse direction. (Expand
-  // uses CSS transform — see expandToBlogs — which is smoother on mobile.)
-  // Clamps the requested target to the currently scrollable range so on
-  // short viewports the animation runs the full duration covering whatever
-  // distance is available rather than freezing partway through the easing.
-  const animatedScrollRef = useRef<number | null>(null);
-  const animateScrollTo = useCallback(
-    (targetY: number, durationMs: number = SCROLL_DURATION_MS) => {
-      if (animatedScrollRef.current != null) {
-        cancelAnimationFrame(animatedScrollRef.current);
-        animatedScrollRef.current = null;
-      }
-      const maxScroll = Math.max(
-        0,
-        document.documentElement.scrollHeight - window.innerHeight,
-      );
-      const clampedTarget = Math.max(0, Math.min(targetY, maxScroll));
-      const startY = window.scrollY;
-      const delta = clampedTarget - startY;
-      if (Math.abs(delta) < 1 || durationMs <= 0) {
-        window.scrollTo({ top: clampedTarget });
-        return;
-      }
-      const startTime = performance.now();
-      const ease = (t: number) => 1 - Math.pow(1 - t, 3);
-      const step = (now: number) => {
-        const t = Math.min(1, (now - startTime) / durationMs);
-        window.scrollTo({ top: startY + delta * ease(t) });
-        if (t < 1) {
-          animatedScrollRef.current = requestAnimationFrame(step);
-        } else {
-          animatedScrollRef.current = null;
-        }
-      };
-      animatedScrollRef.current = requestAnimationFrame(step);
-    },
-    [],
-  );
-
-  // Sequence the collapse transition: re-mount home (no transform, no
-  // transition), instantly jump scrollY to the writing target so the visual
-  // position is preserved across the remount, then smooth-scroll back to 0
-  // — home content slides into view from above. We use scroll (rather than
-  // transform like expand does) for collapse because we need to know the
-  // exact target distance, which only becomes computable after home has
-  // re-mounted and laid out.
+  // Sequence the collapse transition (also GPU-composited via transform):
+  //   1. Re-mount home content (setHomeCollapsed(false)).
+  //   2. Right after the React commit, in a useLayoutEffect, measure the
+  //      newly-laid-out writing position and apply transform: translateY(-X)
+  //      directly via the column ref BEFORE the browser paints. This keeps
+  //      writing visually pinned at viewport y=desiredTop across the
+  //      remount (no flash of the home view).
+  //   3. Two rAFs later, switch transition back on and animate the
+  //      transform to 0 — the column slides down, revealing home from
+  //      above. After the animation, drop the transform.
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const pendingCollapseRef = useRef(false);
   const collapseToHome = useCallback(() => {
     if (animTimerRef.current) {
       window.clearTimeout(animTimerRef.current);
       animTimerRef.current = null;
     }
+    pendingCollapseRef.current = true;
     setBlogsExpanded(false);
     setHomeCollapsed(false);
     setExpanding(false);
     setTranslateY(0);
+  }, []);
+
+  // After collapseToHome triggers a re-render with home re-mounted but
+  // before the browser paints, measure the writing target and pin the
+  // column up-by-target via direct DOM mutation on the column ref. Then,
+  // on the next two animation frames, switch the CSS transition on and
+  // animate the transform back to 0 — home slides into view from above
+  // without any visible flash of the un-translated home layout.
+  useLayoutEffect(() => {
+    if (!pendingCollapseRef.current) return;
+    pendingCollapseRef.current = false;
+    const col = columnRef.current;
+    if (!col) return;
+    const target = computeWritingTranslateDistance();
+    if (target <= 0) return;
+    // Apply pre-translate synchronously so the user never sees the home
+    // view at scrollY=0 before the animation starts.
+    col.style.transition = "none";
+    col.style.transform = `translateY(-${target}px)`;
+    col.style.willChange = "transform";
     requestAnimationFrame(() => {
-      window.scrollTo({ top: computeWritingScrollTarget() });
-      requestAnimationFrame(() => animateScrollTo(0));
+      requestAnimationFrame(() => {
+        if (!columnRef.current) return;
+        columnRef.current.style.transition = `transform ${SCROLL_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        columnRef.current.style.transform = "translateY(0)";
+      });
     });
-  }, [animateScrollTo, computeWritingScrollTarget]);
+    animTimerRef.current = window.setTimeout(() => {
+      const c = columnRef.current;
+      if (c) {
+        c.style.transition = "";
+        c.style.transform = "";
+        c.style.willChange = "";
+      }
+      animTimerRef.current = null;
+    }, SCROLL_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+  });
 
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
@@ -896,11 +902,14 @@ export function InteractiveLayout({
       `}</style>
 
       {/* Content column — centered on small screens, left-aligned when
-          terminal visible on lg. The 10vh top/bottom padding is consistent
-          across breakpoints so the smooth-scroll target (10vh) lines up with
-          the post-collapse writing position on every viewport. */}
+          terminal visible on lg. Uses the same compact py padding as the
+          rest of the site so the header sits high. The post-collapse
+          writing-target lines up with this padding (computeDesiredTop reads
+          the actual padding-top), so the expand animation lands writing
+          exactly where it'll naturally sit. */}
       <div
-        className={`px-8 pt-[10vh] pb-[10vh] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        ref={contentWrapperRef}
+        className={`px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           terminalOpen && !terminalFullscreen ? "lg:max-w-[50vw]" : ""
         }`}
         style={{
@@ -909,6 +918,7 @@ export function InteractiveLayout({
         }}
       >
         <div
+          ref={columnRef}
           className="max-w-[480px] mx-auto"
           style={{
             transform: translateY ? `translateY(-${translateY}px)` : undefined,
@@ -1082,13 +1092,19 @@ export function InteractiveLayout({
 
           {/* Writing + footer block. On home, the footer flows naturally
               right after the preview posts (no padding gap). On expanded,
-              the block is pinned to 80vh on every viewport (combined with
-              the wrapper's pt-[10vh] / pb-[10vh] this makes the document
-              exactly 100vh tall when home is collapsed — no overflow,
-              writing at viewport y=10vh, footer at viewport y=90vh, no
-              jump-at-end on the View-all animation). */}
+              the block fills the rest of the viewport so the document is
+              exactly 100vh tall (writing at the wrapper's paddingTop,
+              footer pushed to bottom-of-block via mt-auto, no overflow,
+              no jump-at-end on the View-all animation). The responsive
+              calcs match the responsive py on the wrapper:
+                py-16  → block = 100vh − 8rem  (mobile)
+                sm:py-24 → block = 100vh − 12rem (tablet+) */}
           <div
-            className={blogsExpanded ? "flex flex-col min-h-[80vh]" : ""}
+            className={
+              blogsExpanded
+                ? "flex flex-col min-h-[calc(100vh-8rem)] sm:min-h-[calc(100vh-12rem)]"
+                : ""
+            }
           >
           <section ref={writingSectionRef}>
             <div className="flex items-center justify-between mb-2">

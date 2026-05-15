@@ -37,6 +37,22 @@ function TerminalIcon() {
   return (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>);
 }
 
+function ChevronDownIcon() {
+  return (
+    <svg className="w-3 h-3 inline-block align-baseline" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 4.75 6 7.75 9 4.75" />
+    </svg>
+  );
+}
+
+function ChevronUpIcon() {
+  return (
+    <svg className="w-3 h-3 inline-block align-baseline" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 7.25 6 4.25 9 7.25" />
+    </svg>
+  );
+}
+
 /* ── Ghost card styles ── */
 function ghostCardStyle(theme: Theme) {
   return {
@@ -270,12 +286,19 @@ export function InteractiveLayout({
     initialSectionIntent === "blog",
   );
   // True once the home content should be removed from layout (display:none).
-  // Lags `blogsExpanded` so the smooth-scroll-to-writing animation has a
-  // chance to play before the document shrinks underneath it.
+  // Lags `blogsExpanded` so the expand animation can play before the document
+  // shrinks underneath it.
   const [homeCollapsed, setHomeCollapsed] = useState(
     initialSectionIntent === "blog",
   );
-  const homeCollapseTimerRef = useRef<number | null>(null);
+  // The expand animation slides the entire content column up by translating
+  // (CSS `transform: translateY(-X)`), which is GPU-composited and noticeably
+  // smoother on mobile than window.scrollTo. See expandToBlogs for the
+  // sequencing. Collapse uses scrollTo instead (see collapseToHome) because
+  // its target distance is only computable after home re-mounts.
+  const [expanding, setExpanding] = useState(false);
+  const [translateY, setTranslateY] = useState(0);
+  const animTimerRef = useRef<number | null>(null);
   // Versioned chain request so the terminal re-fires even when the same
   // commands are requested multiple times.
   const [autoTypeRequest, setAutoTypeRequest] = useState<
@@ -297,7 +320,6 @@ export function InteractiveLayout({
   const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
   const writingSectionRef = useRef<HTMLElement | null>(null);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
-  const animatedScrollRef = useRef<number | null>(null);
   const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
   // Commands the terminal should auto-type on first paint. Fixed for the
   // lifetime of this component (only depends on the SSR'd intent), so the
@@ -326,8 +348,7 @@ export function InteractiveLayout({
   useEffect(
     () => () => {
       if (tooltipTimeoutRef.current) window.clearTimeout(tooltipTimeoutRef.current);
-      if (homeCollapseTimerRef.current) window.clearTimeout(homeCollapseTimerRef.current);
-      if (animatedScrollRef.current != null) cancelAnimationFrame(animatedScrollRef.current);
+      if (animTimerRef.current) window.clearTimeout(animTimerRef.current);
       calWidthSyncCleanupRef.current?.();
       calWidthSyncCleanupRef.current = null;
     },
@@ -666,13 +687,60 @@ export function InteractiveLayout({
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
 
-  // Compute the window.scrollY at which the Writing heading aligns with the
-  // terminal pane's top edge (10vh) — i.e. the natural target for the
-  // View-all expand transition. Hard-coded to 10vh rather than reading the
-  // terminal wrapper's bounding rect so it stays consistent with the
-  // post-collapse layout (where the wrapper has `lg:pt-[10vh]`); reading the
-  // wrapper's rect also breaks when the terminal is closed (scale-95
-  // shrinks the rect by ~18px, causing a jump at the end of the animation).
+  // Distance from the Writing heading's current viewport position down to
+  // the desired terminal-top alignment (10vh). Captured at the moment the
+  // user clicks View-all so the animation knows how far to slide.
+  const computeWritingTranslateDistance = useCallback(() => {
+    const heading = writingSectionRef.current;
+    if (!heading) return 0;
+    const desiredTop = window.innerHeight * 0.1;
+    return Math.max(0, heading.getBoundingClientRect().top - desiredTop);
+  }, []);
+
+  // Sequence the expand transition. Uses a CSS transform on the column
+  // (GPU-composited) instead of window.scrollTo so each animation frame is a
+  // compositor-only repaint — meaningfully smoother on mobile.
+  //
+  //   1. Apply transform: translateY(-target) with a CSS transition.
+  //      Browser animates the column up over SCROLL_DURATION_MS.
+  //   2. After the animation completes, atomically swap to the
+  //      "home unmounted, transform: none" state. The pre-swap visual
+  //      position (writing at viewport 10vh, courtesy of the transform) is
+  //      identical to the post-swap natural position (writing at viewport
+  //      10vh, courtesy of pt-[10vh] on the wrapper) — so there's no jump.
+  const expandToBlogs = useCallback(() => {
+    if (animTimerRef.current) {
+      window.clearTimeout(animTimerRef.current);
+      animTimerRef.current = null;
+    }
+    const target = computeWritingTranslateDistance();
+    // Two-step apply so the CSS transition fires reliably:
+    //   render 1 — turn the transition on while transform is still 0,
+    //   render 2 — flip transform to -target so the browser animates between
+    //              the two values rather than landing on -target instantly.
+    setBlogsExpanded(true);
+    setHomeCollapsed(false);
+    setExpanding(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setTranslateY(target));
+    });
+    animTimerRef.current = window.setTimeout(() => {
+      // Atomic swap at the end of the animation: drop transform AND set
+      // display:none on the home content in the same React render. React 18+
+      // batches setState calls in setTimeout callbacks so this is a single
+      // paint with no flash.
+      setExpanding(false);
+      setTranslateY(0);
+      setHomeCollapsed(true);
+      animTimerRef.current = null;
+    }, SCROLL_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+  }, [computeWritingTranslateDistance]);
+
+  // Compute the window.scrollY at which the Writing heading aligns with
+  // viewport y=10vh given the *current* layout. Used by the collapse
+  // animation so that, immediately after re-mounting the home content,
+  // we can jump scrollY to a position that keeps writing visually pinned
+  // before animating the page back down to scrollY=0.
   const computeWritingScrollTarget = useCallback(() => {
     const heading = writingSectionRef.current;
     if (!heading) return 0;
@@ -681,13 +749,12 @@ export function InteractiveLayout({
     return Math.max(0, window.scrollY + headingTop - desiredTop);
   }, []);
 
-  // Custom rAF scroll animation. (See SCROLL_DURATION_MS comment for why we
-  // don't just use `behavior: "smooth"`.) Clamps the requested target to the
-  // currently scrollable range so that on short viewports (mobile) the
-  // animation still runs over the *full* duration covering whatever distance
-  // is available — without a clamped target the rAF keeps requesting Y
-  // values past the document end and the browser silently caps them, which
-  // visually freezes the scroll partway through the easing curve.
+  // Custom rAF scroll animation, used for the collapse direction. (Expand
+  // uses CSS transform — see expandToBlogs — which is smoother on mobile.)
+  // Clamps the requested target to the currently scrollable range so on
+  // short viewports the animation runs the full duration covering whatever
+  // distance is available rather than freezing partway through the easing.
+  const animatedScrollRef = useRef<number | null>(null);
   const animateScrollTo = useCallback(
     (targetY: number, durationMs: number = SCROLL_DURATION_MS) => {
       if (animatedScrollRef.current != null) {
@@ -706,7 +773,6 @@ export function InteractiveLayout({
         return;
       }
       const startTime = performance.now();
-      // Ease-out cubic: fast at the start, settles softly at the end.
       const ease = (t: number) => 1 - Math.pow(1 - t, 3);
       const step = (now: number) => {
         const t = Math.min(1, (now - startTime) / durationMs);
@@ -722,40 +788,22 @@ export function InteractiveLayout({
     [],
   );
 
-  // Sequence the expand transition: smooth-scroll to writing target with
-  // home still in document flow, then drop home from layout (display:none)
-  // once the scroll has settled — at which point the doc shrinks to just
-  // writing + footer and the natural scrollbar takes over.
-  const expandToBlogs = useCallback(() => {
-    if (homeCollapseTimerRef.current) {
-      window.clearTimeout(homeCollapseTimerRef.current);
-      homeCollapseTimerRef.current = null;
-    }
-    setBlogsExpanded(true);
-    setHomeCollapsed(false);
-    requestAnimationFrame(() =>
-      animateScrollTo(computeWritingScrollTarget()),
-    );
-    homeCollapseTimerRef.current = window.setTimeout(() => {
-      setHomeCollapsed(true);
-      // Once home is gone the doc shrinks to just writing+footer; reset
-      // scrollY to the new top so the natural scrollbar reflects only what's
-      // visible (no "phantom" headroom from where the home content used to be).
-      window.scrollTo({ top: 0 });
-      homeCollapseTimerRef.current = null;
-    }, SCROLL_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
-  }, [animateScrollTo, computeWritingScrollTarget]);
-
-  // Sequence the collapse transition: re-mount home, jump scrollY to the
-  // writing target so the visual position stays put, then smooth-scroll
-  // back to 0 (revealing the home content from above).
+  // Sequence the collapse transition: re-mount home (no transform, no
+  // transition), instantly jump scrollY to the writing target so the visual
+  // position is preserved across the remount, then smooth-scroll back to 0
+  // — home content slides into view from above. We use scroll (rather than
+  // transform like expand does) for collapse because we need to know the
+  // exact target distance, which only becomes computable after home has
+  // re-mounted and laid out.
   const collapseToHome = useCallback(() => {
-    if (homeCollapseTimerRef.current) {
-      window.clearTimeout(homeCollapseTimerRef.current);
-      homeCollapseTimerRef.current = null;
+    if (animTimerRef.current) {
+      window.clearTimeout(animTimerRef.current);
+      animTimerRef.current = null;
     }
     setBlogsExpanded(false);
     setHomeCollapsed(false);
+    setExpanding(false);
+    setTranslateY(0);
     requestAnimationFrame(() => {
       window.scrollTo({ top: computeWritingScrollTarget() });
       requestAnimationFrame(() => animateScrollTo(0));
@@ -860,19 +908,29 @@ export function InteractiveLayout({
           pointerEvents: terminalFullscreen ? "none" : "auto",
         }}
       >
-        <div className="max-w-[480px] mx-auto">
-          {/* Home-only sections: removed from layout flow (display:none) when
+        <div
+          className="max-w-[480px] mx-auto"
+          style={{
+            transform: translateY ? `translateY(-${translateY}px)` : undefined,
+            transition: expanding
+              ? `transform ${SCROLL_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
+              : "none",
+            // Hint the compositor: the browser can promote the column to its
+            // own GPU layer ahead of the animation rather than mid-animation.
+            willChange: expanding ? "transform" : undefined,
+          }}
+        >
+          {/* Home-only sections: removed from layout flow (display:none) once
               the user has fully transitioned to the expanded /blog view.
-              We use a separate `homeCollapsed` flag (rather than just
-              `blogsExpanded`) so the smooth-scroll animation that runs when
-              expanding has the home content in place to scroll past;
-              `homeCollapsed` flips to true on a timer once the scroll has
-              settled, shrinking the document to just the writing + footer
-              region (scrollbar then reflects only what's visible). */}
+              `homeCollapsed` lags `blogsExpanded` so the home content is
+              still rendered (and visible) while the expand animation slides
+              the column up — the user actually sees the home content
+              scrolling off the top before it gets unmounted. After the
+              swap the document shrinks to just writing+footer (scrollbar
+              then reflects only what's visible). */}
           <div
             style={{
               display: homeCollapsed ? "none" : undefined,
-              visibility: blogsExpanded && !homeCollapsed ? "hidden" : "visible",
               pointerEvents: blogsExpanded ? "none" : "auto",
             }}
           >
@@ -1038,10 +1096,20 @@ export function InteractiveLayout({
               <button
                 type="button"
                 onClick={handleViewAllClick}
-                className="text-xs transition-colors hover:opacity-70"
+                className="text-xs transition-opacity hover:opacity-70 inline-flex items-center gap-1.5"
                 style={{ color: theme.textMuted }}
               >
-                {blogsExpanded ? "\u2190 Back to home" : "View all \u2192"}
+                {blogsExpanded ? (
+                  <>
+                    <ChevronUpIcon />
+                    <span>Back to home</span>
+                  </>
+                ) : (
+                  <>
+                    <span>View all</span>
+                    <ChevronDownIcon />
+                  </>
+                )}
               </button>
             </div>
             {(blogsExpanded ? posts : previewPosts).length > 0 ? (

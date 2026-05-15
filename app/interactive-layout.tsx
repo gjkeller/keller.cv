@@ -8,10 +8,6 @@ import {
   useMemo,
   useRef,
 } from "react";
-
-// useLayoutEffect warns during SSR; fall back to useEffect on the server.
-const useLayoutEffect =
-  typeof window === "undefined" ? useEffect : useReactLayoutEffect;
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
@@ -20,6 +16,10 @@ import { getCalApi } from "@calcom/embed-react";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
 import { Terminal } from "./terminal";
 import { renderMarkdown, type MdStyles } from "@/lib/render-md";
+
+// useLayoutEffect warns during SSR; fall back to useEffect on the server.
+const useLayoutEffect =
+  typeof window === "undefined" ? useEffect : useReactLayoutEffect;
 
 /* ── Social icon map ── */
 const socialIcons: Record<string, React.ReactNode> = {
@@ -82,12 +82,12 @@ function ghostCardStyle(theme: Theme) {
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const DESKTOP_OPEN_HINT_MS = 1000;
-// Duration (ms) of the View-all / Back-to-home smooth-scroll animation.
+// Duration (ms) of the View-all / Back-to-home transform animation.
 // Browser-default `behavior: "smooth"` runs ~500–800ms which felt sluggish;
 // 320ms with an ease-out-cubic curve is snappier without losing the smoothness.
-const SCROLL_DURATION_MS = 320;
-// Grace period added on top of SCROLL_DURATION_MS before the home content
-// is dropped from layout (display:none), so the scroll has time to settle.
+const ANIMATION_DURATION_MS = 320;
+// Grace period added on top of ANIMATION_DURATION_MS before the home content
+// is dropped from layout (display:none), so the animation has time to settle.
 const HOME_COLLAPSE_GRACE_MS = 40;
 
 // Map pathname → document title. Used to keep the tab title in sync with
@@ -302,11 +302,11 @@ export function InteractiveLayout({
   const [homeCollapsed, setHomeCollapsed] = useState(
     initialSectionIntent === "blog",
   );
-  // The expand animation slides the entire content column up by translating
-  // (CSS `transform: translateY(-X)`), which is GPU-composited and noticeably
-  // smoother on mobile than window.scrollTo. See expandToBlogs for the
-  // sequencing. Collapse uses scrollTo instead (see collapseToHome) because
-  // its target distance is only computable after home re-mounts.
+  // Both expand and collapse slide the content column via a CSS
+  // `transform: translateY(-X)` rather than `window.scrollTo`. The transform
+  // is GPU-composited (compositor-only repaints) and noticeably smoother
+  // on mobile. See expandToBlogs / the collapse useLayoutEffect for the
+  // sequencing.
   const [expanding, setExpanding] = useState(false);
   const [translateY, setTranslateY] = useState(0);
   const animTimerRef = useRef<number | null>(null);
@@ -699,11 +699,11 @@ export function InteractiveLayout({
   }, []);
 
   // Distance from the Writing heading's current viewport position down to
-  // the desired top — i.e. the wrapper's effective padding-top. Captured at
-  // the moment the user triggers expand/collapse so the transform
+  // the desired top — i.e. the wrapper's effective padding-top. Captured
+  // at the moment the user triggers expand/collapse so the transform
   // animation knows how far to slide. We read the actual computed
-  // padding-top so the math is correct across responsive breakpoints
-  // (py-16 vs sm:py-24).
+  // padding-top via getComputedStyle so the math stays correct across
+  // responsive breakpoints (py-16 vs sm:py-24) without hard-coding values.
   const contentWrapperRef = useRef<HTMLDivElement | null>(null);
   const computeDesiredTop = useCallback(() => {
     const wrap = contentWrapperRef.current;
@@ -718,16 +718,17 @@ export function InteractiveLayout({
   }, [computeDesiredTop]);
 
   // Sequence the expand transition. Uses a CSS transform on the column
-  // (GPU-composited) instead of window.scrollTo so each animation frame is a
-  // compositor-only repaint — meaningfully smoother on mobile.
+  // (GPU-composited) instead of window.scrollTo so each animation frame is
+  // a compositor-only repaint — meaningfully smoother on mobile.
   //
   //   1. Apply transform: translateY(-target) with a CSS transition.
-  //      Browser animates the column up over SCROLL_DURATION_MS.
+  //      Browser animates the column up over ANIMATION_DURATION_MS.
   //   2. After the animation completes, atomically swap to the
   //      "home unmounted, transform: none" state. The pre-swap visual
-  //      position (writing at viewport 10vh, courtesy of the transform) is
-  //      identical to the post-swap natural position (writing at viewport
-  //      10vh, courtesy of pt-[10vh] on the wrapper) — so there's no jump.
+  //      position (writing pinned at the wrapper's padding-top by the
+  //      transform) is identical to the post-swap natural position
+  //      (writing's natural top is the wrapper's padding-top), so the
+  //      swap is invisible.
   const expandToBlogs = useCallback(() => {
     if (animTimerRef.current) {
       window.clearTimeout(animTimerRef.current);
@@ -753,7 +754,7 @@ export function InteractiveLayout({
       setTranslateY(0);
       setHomeCollapsed(true);
       animTimerRef.current = null;
-    }, SCROLL_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+    }, ANIMATION_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
   }, [computeWritingTranslateDistance]);
 
   // Sequence the collapse transition (also GPU-composited via transform):
@@ -780,12 +781,13 @@ export function InteractiveLayout({
     setTranslateY(0);
   }, []);
 
-  // After collapseToHome triggers a re-render with home re-mounted but
-  // before the browser paints, measure the writing target and pin the
-  // column up-by-target via direct DOM mutation on the column ref. Then,
-  // on the next two animation frames, switch the CSS transition on and
-  // animate the transform back to 0 — home slides into view from above
-  // without any visible flash of the un-translated home layout.
+  // Drives the collapse animation. Runs synchronously after collapseToHome's
+  // setState commit (which re-mounts home content) but before the browser
+  // paints — so we can measure the freshly-laid-out writing position and
+  // apply the pre-translate via direct DOM mutation, eliminating any flash
+  // of the un-translated home view. Two rAFs later we enable the transition
+  // and animate the transform back to 0; after the animation we strip the
+  // styles so the column is back to its plain layout.
   useLayoutEffect(() => {
     if (!pendingCollapseRef.current) return;
     pendingCollapseRef.current = false;
@@ -793,15 +795,13 @@ export function InteractiveLayout({
     if (!col) return;
     const target = computeWritingTranslateDistance();
     if (target <= 0) return;
-    // Apply pre-translate synchronously so the user never sees the home
-    // view at scrollY=0 before the animation starts.
     col.style.transition = "none";
     col.style.transform = `translateY(-${target}px)`;
     col.style.willChange = "transform";
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (!columnRef.current) return;
-        columnRef.current.style.transition = `transform ${SCROLL_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        columnRef.current.style.transition = `transform ${ANIMATION_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
         columnRef.current.style.transform = "translateY(0)";
       });
     });
@@ -813,8 +813,8 @@ export function InteractiveLayout({
         c.style.willChange = "";
       }
       animTimerRef.current = null;
-    }, SCROLL_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
-  });
+    }, ANIMATION_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+  }, [homeCollapsed, computeWritingTranslateDistance]);
 
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
@@ -923,7 +923,7 @@ export function InteractiveLayout({
           style={{
             transform: translateY ? `translateY(-${translateY}px)` : undefined,
             transition: expanding
-              ? `transform ${SCROLL_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
+              ? `transform ${ANIMATION_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
               : "none",
             // Hint the compositor: the browser can promote the column to its
             // own GPU layer ahead of the animation rather than mid-animation.

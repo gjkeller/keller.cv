@@ -326,9 +326,10 @@ export function InteractiveLayout({
     y: number;
   } | null>(null);
   const tooltipTimeoutRef = useRef<number | null>(null);
-  const clickKeyRef = useRef<string | null>(null);
+  // Tracks how many single-clicks the user has done on a card; after 3 we
+  // surface a small "double-click to open" hint near the cursor so they
+  // discover the navigation action.
   const singleClickCountRef = useRef(0);
-  const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
   const writingSectionRef = useRef<HTMLElement | null>(null);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
   const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
@@ -494,7 +495,6 @@ export function InteractiveLayout({
       return;
     }
 
-    clickKeyRef.current = key;
     singleClickCountRef.current += 1;
     if (singleClickCountRef.current >= 3) {
       showDesktopTooltip(key, e.clientX, e.clientY);
@@ -1171,7 +1171,7 @@ export function InteractiveLayout({
 
       {/* Single terminal instance — wrapper switches between desktop/mobile layout */}
       {isDesktop ? (
-        <div ref={terminalWrapperRef} className={`fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        <div className={`fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
           !terminalOpen
             ? "transition-all duration-150 opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
             : terminalFullscreen

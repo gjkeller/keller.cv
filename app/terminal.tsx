@@ -18,7 +18,35 @@ interface TerminalProps {
   onThemeChange?: (name: string) => void;
   borderless?: boolean;
   sessionKey?: string;
+  /**
+   * Commands auto-typed in sequence on first paint of a fresh session.
+   * Each entry may itself be an `&&`-separated chain like
+   * `"cd blog && cat README.md"`; see the auto-type lifecycle comment below.
+   */
+  initialAutoCommands?: string[];
+  /**
+   * Externally-driven command chain. Each entry is typed by the typewriter
+   * verbatim, then executed (with `&&` chaining honoured). Increment `id` to
+   * retrigger even when `commands` is unchanged; set to `null` for no request.
+   *
+   * Example: `{ commands: ["clear && cd blog && cat README.md"], id: 7 }`.
+   */
+  autoTypeRequest?: { commands: string[]; id: number } | null;
 }
+
+/* ── Auto-type chain types ──────────────────────────────────────────── */
+
+type SideEffect = "none" | "clear" | { kind: "cd"; newCwd: string };
+
+type ChainPart = { command: string; output: string; sideEffect: SideEffect };
+
+type ChainPlan = {
+  parts: ChainPart[];
+  /** Verbatim command line as the user saw it typed (e.g. with `&&`). */
+  typedLine: string;
+  /** Prompt that was active when the line started typing. */
+  promptAtType: string;
+};
 
 export { THEME_NAMES };
 
@@ -128,6 +156,8 @@ export function Terminal({
   onThemeChange,
   borderless = false,
   sessionKey = "main",
+  initialAutoCommands,
+  autoTypeRequest = null,
 }: TerminalProps) {
   const dark = theme.isDark;
   const [history, setHistory] = useState<{ prompt: string; command: string; output: string }[]>([]);
@@ -154,6 +184,9 @@ export function Terminal({
   const [autoPhase, setAutoPhase] = useState<"idle" | "typing-cmd" | "typing-output">("idle");
   const prevFileRef = useRef<string | null>(null);
   const [storageReady, setStorageReady] = useState(false);
+  // Queue of upcoming auto-type commands. We pop the head, type it, run it,
+  // commit its output to history, then advance to the next.
+  const autoQueueRef = useRef<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -664,31 +697,207 @@ export function Terminal({
     }
   }, [inputValue, cursorPos, cmdHistory, historyIdx, autoPhase, handleSubmit, getCompletions, currentPrompt, isStreaming, chatMode]);
 
-  /* ── Auto-type lifecycle ── */
-  useEffect(() => {
-    if (autoPhase === "typing-cmd" && cmdTyper.done) setAutoPhase("typing-output");
-  }, [autoPhase, cmdTyper.done]);
+  /* ── Auto-type lifecycle ──
+   * Each entry in autoQueueRef is a single command line which may contain
+   * `&&` chaining (e.g. `clear && cd blog && cat README.md`). The whole
+   * line is typed verbatim by the typewriter. While typing the command
+   * line, any `clear` is applied immediately on completion (real-shell
+   * ordering). Once the line+output have streamed, we commit a single
+   * history entry whose `command` is the raw chain text the user saw.
+   * `cd`'s side effect is applied at commit so the next prompt reflects
+   * the new cwd.
+   */
 
-  useEffect(() => {
-    if (autoPhase === "typing-output" && outputTyper.done) {
-      setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
+  const resolveSinglePart = (
+    raw: string,
+    cwdAtCall: string,
+  ): { output: string; sideEffect: SideEffect } => {
+    const [base, ...rest] = raw.trim().split(/\s+/);
+    const arg = rest.join(" ");
+    if (base === "clear") return { output: "", sideEffect: "clear" };
+    if (base === "cd") {
+      let newCwd = cwdAtCall;
+      if (!arg || arg === "~" || arg === "~/" || arg === ".." || arg === "../") {
+        newCwd = "~";
+      } else {
+        const target = arg.startsWith("~/")
+          ? arg.slice(2) || "~"
+          : cwdAtCall === "~"
+            ? arg.replace(/\/$/, "")
+            : `${cwdAtCall}/${arg}`.replace(/\/$/, "");
+        if (dirs[target] !== undefined) newCwd = target;
+      }
+      return { output: "", sideEffect: { kind: "cd", newCwd } };
+    }
+    if (base === "cat") {
+      const filePath = arg.startsWith("~/")
+        ? arg.slice(2)
+        : cwdAtCall === "~"
+          ? arg
+          : `${cwdAtCall}/${arg}`;
+      const content = fs[filePath] || fs[arg] || `cat: ${arg}: No such file or directory`;
+      return { output: content, sideEffect: "none" };
+    }
+    if (base === "ls") {
+      const dir = arg
+        ? arg === "~"
+          ? "~"
+          : arg.startsWith("~/")
+            ? arg.slice(2) || "~"
+            : cwdAtCall === "~"
+              ? arg.replace(/\/$/, "")
+              : `${cwdAtCall}/${arg}`.replace(/\/$/, "")
+        : cwdAtCall;
+      const entries = dirs[dir] || dirs[dir.replace("/", "")];
+      return {
+        output: entries
+          ? entries.length
+            ? entries.join("  ")
+            : "(empty)"
+          : `ls: ${arg || dir}: No such file or directory`,
+        sideEffect: "none",
+      };
+    }
+    return { output: "", sideEffect: "none" };
+  };
+
+  // Plan generated when a chain begins typing; consumed at commit time.
+  const chainPlanRef = useRef<ChainPlan | null>(null);
+
+  const advanceAutoQueueRef = useRef<() => void>(() => {});
+  advanceAutoQueueRef.current = () => {
+    const next = autoQueueRef.current.shift();
+    if (!next) {
       setAutoCommand("");
       setAutoOutput("");
       setAutoPhase("idle");
+      chainPlanRef.current = null;
+      return;
     }
-  }, [autoPhase, outputTyper.done, autoCommand, autoOutput, currentPrompt]);
+    const parts = next
+      .split(/\s*&&\s*/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let projectedCwd = cwd;
+    const planParts: ChainPart[] = parts.map((p) => {
+      const resolved = resolveSinglePart(p, projectedCwd);
+      if (
+        resolved.sideEffect !== "none" &&
+        resolved.sideEffect !== "clear" &&
+        resolved.sideEffect.kind === "cd"
+      ) {
+        projectedCwd = resolved.sideEffect.newCwd;
+      }
+      return { command: p, output: resolved.output, sideEffect: resolved.sideEffect };
+    });
+    chainPlanRef.current = {
+      parts: planParts,
+      typedLine: next,
+      promptAtType: currentPrompt,
+    };
+    // Concatenate non-empty outputs so the typewriter streams them all under
+    // the single typed-out command line. Outputs are joined by a blank line.
+    const concatenated = planParts
+      .map((p) => p.output)
+      .filter((o) => o !== "")
+      .join("\n");
+    setAutoCommand(next);
+    setAutoOutput(concatenated);
+    setAutoPhase("typing-cmd");
+  };
 
-  // Initial welcome
+  const commitAndAdvanceRef = useRef<() => void>(() => {});
+  commitAndAdvanceRef.current = () => {
+    const plan = chainPlanRef.current;
+    chainPlanRef.current = null;
+    if (!plan) {
+      // Legacy auto-type path (e.g. clicks on a blog post in the left
+      // column drive `activeFile`, which sets autoCommand/autoOutput
+      // directly without enqueueing a chain). Commit the in-flight entry
+      // so it persists in scrollback once the typewriter finishes.
+      if (autoCommand) {
+        const cmd = autoCommand;
+        const output = autoOutput;
+        const promptAtCommit = currentPrompt;
+        setHistory((prev) => [...prev, { prompt: promptAtCommit, command: cmd, output }]);
+      }
+      advanceAutoQueueRef.current();
+      return;
+    }
+
+    // Apply final side effects (cd) and append the chain entry. `clear` was
+    // already applied when typing finished, so nothing to do for it here
+    // beyond skipping its (empty) output.
+    let nextCwd = cwd;
+    const collectedOutputs: string[] = [];
+    for (const part of plan.parts) {
+      if (part.sideEffect === "clear") continue;
+      if (part.output) collectedOutputs.push(part.output);
+      if (part.sideEffect !== "none" && part.sideEffect.kind === "cd") {
+        nextCwd = part.sideEffect.newCwd;
+      }
+    }
+
+    const entry = {
+      prompt: plan.promptAtType,
+      command: plan.typedLine,
+      output: collectedOutputs.join("\n"),
+    };
+    setHistory((prev) => [...prev, entry]);
+    if (nextCwd !== cwd) setCwd(nextCwd);
+
+    advanceAutoQueueRef.current();
+  };
+
+  // Compare typewriter's displayed text against the current autoCommand /
+  // autoOutput so we don't get spurious "done=true" carry-over when a new
+  // command/output is set in the same React batch (the inner `useTypewriter`
+  // effect has not yet reset `done` for the new text).
+  useEffect(() => {
+    if (autoPhase !== "typing-cmd") return;
+    if (!autoCommand) return;
+    if (cmdTyper.displayed !== autoCommand) return;
+    // Apply `clear` *before* the output streams (real-shell ordering): if the
+    // chain contains `clear`, wipe scrollback the moment the command line
+    // finishes typing, then stream the post-clear output below.
+    const plan = chainPlanRef.current;
+    if (plan && plan.parts.some((p) => p.sideEffect === "clear")) {
+      setHistory([]);
+    }
+    if (autoOutput) {
+      setAutoPhase("typing-output");
+    } else {
+      commitAndAdvanceRef.current();
+    }
+  }, [autoPhase, cmdTyper.displayed, autoCommand, autoOutput]);
+
+  useEffect(() => {
+    if (autoPhase !== "typing-output") return;
+    if (!autoOutput) return;
+    if (outputTyper.displayed !== autoOutput) return;
+    commitAndAdvanceRef.current();
+  }, [autoPhase, outputTyper.displayed, autoOutput]);
+
+  // Initial intro commands (default: just `cat welcome.md`). Fires exactly
+  // once per Terminal instance after sessionStorage rehydration.
+  const ranInitialRef = useRef(false);
   useEffect(() => {
     if (!storageReady) return;
+    if (ranInitialRef.current) return;
+    ranInitialRef.current = true;
     if (history.length > 0) return;
-    const welcome = staticFiles["welcome.md"] || "Type 'help' for commands.";
-    setAutoCommand("cat welcome.md");
-    setAutoOutput(welcome);
-    setAutoPhase("typing-cmd");
-  }, [storageReady, history.length, staticFiles]); // eslint-disable-line react-hooks/exhaustive-deps
+    const initial = initialAutoCommands && initialAutoCommands.length > 0
+      ? initialAutoCommands
+      : ["cat welcome.md"];
+    autoQueueRef.current.push(...initial);
+    advanceAutoQueueRef.current();
+  }, [storageReady, history.length, initialAutoCommands]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // React to clicks from left column
+  // Click-to-cat: when the parent sets `activeFile` (driven by clicks on
+  // the left column's work / project / blog post cards), kick off an
+  // immediate `cat <file>` typewriter run. This path bypasses the chain
+  // queue: there's no chainPlanRef, so commitAndAdvanceRef's no-plan
+  // branch falls through to a plain history push when typing finishes.
   useEffect(() => {
     if (!activeFile) return;
     const fileKey = activeFile.command;
@@ -698,7 +907,8 @@ export function Terminal({
     const fileName = fileKey.replace("cat ", "");
     setDynamicFiles((prev) => ({ ...prev, [fileName]: activeFile.content }));
 
-    // Exit agent mode if active
+    // Exit agent mode if active so the chat session doesn't capture the
+    // upcoming auto-typed cat as user input.
     if (chatMode) {
       if (isStreaming) abortRef.current?.abort();
       setChatMode(false);
@@ -706,6 +916,8 @@ export function Terminal({
       setHistory((prev) => [...prev, { prompt: "user> ", command: "", output: "Leaving agent mode." }]);
     }
 
+    // If a chain is in flight, commit whatever was typed so far so it's
+    // preserved in scrollback before we replace the typewriter state.
     if (autoPhase !== "idle" && (autoCommand || autoOutput)) {
       setHistory((prev) => [...prev, { prompt: currentPrompt, command: autoCommand, output: autoOutput }]);
     }
@@ -722,6 +934,30 @@ export function Terminal({
     const urlMatch = activeFile.content.match(/^(https?:\/\/[^\s]+)$/m);
     if (urlMatch) setDynamicUrls((prev) => ({ ...prev, [fileName]: urlMatch[1] }));
   }, [activeFile]);
+
+  // Externally-requested command chain (e.g.
+  // `clear && cd blog && cat README.md` when navigating between / and /blog).
+  const lastAutoTypeReqIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!autoTypeRequest) return;
+    if (lastAutoTypeReqIdRef.current === autoTypeRequest.id) return;
+    lastAutoTypeReqIdRef.current = autoTypeRequest.id;
+    if (!storageReady) return;
+
+    if (chatMode) {
+      if (isStreaming) abortRef.current?.abort();
+      setChatMode(false);
+      setChatMessages([]);
+      setHistory((prev) => [...prev, { prompt: "user> ", command: "", output: "Leaving agent mode." }]);
+    }
+
+    // Enqueue the chain. If the typer is mid-animation, append to the queue
+    // so it will run after the in-progress entry finishes; otherwise kick off.
+    autoQueueRef.current.push(...autoTypeRequest.commands);
+    if (autoPhase === "idle") {
+      advanceAutoQueueRef.current();
+    }
+  }, [autoTypeRequest, storageReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll
   useEffect(() => {

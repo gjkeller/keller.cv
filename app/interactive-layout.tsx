@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect as useReactLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { useRouter } from "next/navigation";
 import type { WorkItem, HackathonWin } from "@/lib/content";
 import { THEMES, resolveAutoTheme, type Theme } from "@/lib/themes";
 import { useTheme } from "@/lib/theme-context";
 import { getCalApi } from "@calcom/embed-react";
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible";
 import { GithubIcon, LinkedinIcon, XIcon, DevpostIcon } from "./icons";
 import { Terminal } from "./terminal";
 import { renderMarkdown, type MdStyles } from "@/lib/render-md";
+
+// useLayoutEffect warns during SSR; fall back to useEffect on the server.
+const useLayoutEffect =
+  typeof window === "undefined" ? useEffect : useReactLayoutEffect;
 
 /* ── Social icon map ── */
 const socialIcons: Record<string, React.ReactNode> = {
@@ -38,6 +48,22 @@ function TerminalIcon() {
   return (<svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>);
 }
 
+function ChevronDownIcon() {
+  return (
+    <svg className="w-3 h-3 inline-block align-baseline" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 4.75 6 7.75 9 4.75" />
+    </svg>
+  );
+}
+
+function ChevronUpIcon() {
+  return (
+    <svg className="w-3 h-3 inline-block align-baseline" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 7.25 6 4.25 9 7.25" />
+    </svg>
+  );
+}
+
 /* ── Ghost card styles ── */
 function ghostCardStyle(theme: Theme) {
   return {
@@ -56,7 +82,13 @@ function ghostCardStyle(theme: Theme) {
 const cardClass = "w-[calc(100%+1.5rem)] text-left -mx-3 px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const callCardClass = "w-full text-left px-3 py-3 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent";
 const DESKTOP_OPEN_HINT_MS = 1000;
-const DESKTOP_CLICK_DELAY_MS = 280;
+// Duration (ms) of the View-all / Back-to-home transform animation.
+// Browser-default `behavior: "smooth"` runs ~500–800ms which felt sluggish;
+// 320ms with an ease-out-cubic curve is snappier without losing the smoothness.
+const ANIMATION_DURATION_MS = 320;
+// Grace period added on top of ANIMATION_DURATION_MS before the home content
+// is dropped from layout (display:none), so the animation has time to settle.
+const HOME_COLLAPSE_GRACE_MS = 40;
 
 // Map pathname → document title. Used to keep the tab title in sync with
 // the URL bar whenever we mutate history directly (pushState/replaceState),
@@ -264,20 +296,55 @@ export function InteractiveLayout({
   const [blogsExpanded, setBlogsExpanded] = useState(
     initialSectionIntent === "blog",
   );
+  // True once the home content should be removed from layout (display:none).
+  // Lags `blogsExpanded` so the expand animation can play before the document
+  // shrinks underneath it.
+  const [homeCollapsed, setHomeCollapsed] = useState(
+    initialSectionIntent === "blog",
+  );
+  // Both expand and collapse slide the content column via a CSS
+  // `transform: translateY(-X)` rather than `window.scrollTo`. The transform
+  // is GPU-composited (compositor-only repaints) and noticeably smoother
+  // on mobile. See expandToBlogs / the collapse useLayoutEffect for the
+  // sequencing.
+  const [expanding, setExpanding] = useState(false);
+  const [translateY, setTranslateY] = useState(0);
+  const animTimerRef = useRef<number | null>(null);
+  // Versioned chain request so the terminal re-fires even when the same
+  // commands are requested multiple times.
+  const [autoTypeRequest, setAutoTypeRequest] = useState<
+    { commands: string[]; id: number } | null
+  >(null);
+  const autoTypeRequestIdRef = useRef(0);
+  const requestTerminalAutoType = useCallback((commands: string[]) => {
+    autoTypeRequestIdRef.current += 1;
+    setAutoTypeRequest({ commands, id: autoTypeRequestIdRef.current });
+  }, []);
   const [desktopTooltip, setDesktopTooltip] = useState<{
     key: string;
     x: number;
     y: number;
   } | null>(null);
-  const clickTimeoutRef = useRef<number | null>(null);
   const tooltipTimeoutRef = useRef<number | null>(null);
-  const clickKeyRef = useRef<string | null>(null);
+  // Tracks how many single-clicks the user has done on a card; after 3 we
+  // surface a small "double-click to open" hint near the cursor so they
+  // discover the navigation action.
   const singleClickCountRef = useRef(0);
-  const writingHeadingRef = useRef<HTMLDivElement | null>(null);
-  const terminalWrapperRef = useRef<HTMLDivElement | null>(null);
-  const pendingScrollRef = useRef<"smooth" | "instant" | null>(null);
+  const writingSectionRef = useRef<HTMLElement | null>(null);
   const calWidthSyncCleanupRef = useRef<(() => void) | null>(null);
   const previewPosts = useMemo(() => posts.slice(0, 3), [posts]);
+  // Commands the terminal should auto-type on first paint. Fixed for the
+  // lifetime of this component (only depends on the SSR'd intent), so the
+  // useMemo here is mostly for stable identity across renders — the Terminal
+  // gates its initial auto-type on a one-shot ref, but stable identity also
+  // helps with downstream React.memo / dep arrays.
+  const initialAutoCommands = useMemo(
+    () =>
+      initialSectionIntent === "blog"
+        ? ["cd blog && cat README.md"]
+        : ["cat welcome.md"],
+    [initialSectionIntent],
+  );
   useEffect(() => {
     const mql = window.matchMedia("(min-width: 1024px)");
     const desktop = mql.matches;
@@ -289,10 +356,11 @@ export function InteractiveLayout({
     return () => mql.removeEventListener("change", handler);
   }, []);
 
+  // Single unmount cleanup for all timers / rAFs / external listeners.
   useEffect(
     () => () => {
-      if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
       if (tooltipTimeoutRef.current) window.clearTimeout(tooltipTimeoutRef.current);
+      if (animTimerRef.current) window.clearTimeout(animTimerRef.current);
       calWidthSyncCleanupRef.current?.();
       calWidthSyncCleanupRef.current = null;
     },
@@ -416,11 +484,10 @@ export function InteractiveLayout({
 
   const handleClick = useCallback((e: React.MouseEvent, type: string, id: string, url?: string) => {
     const key = `${type}-${id}`;
+    // Modifier-click or double-click navigates. (For double-click, the first
+    // click of the pair already started catting the file in the terminal —
+    // that's fine, the user is being navigated away anyway.)
     if ((e.metaKey || e.ctrlKey || e.shiftKey || e.detail === 2) && url) {
-      if (clickTimeoutRef.current && clickKeyRef.current === key) {
-        window.clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
-      }
       clearDesktopTooltip();
       if (e.metaKey || e.ctrlKey) window.open(url, "_blank");
       else if (url.startsWith("/")) router.push(url);
@@ -428,48 +495,46 @@ export function InteractiveLayout({
       return;
     }
 
-    if (clickTimeoutRef.current) window.clearTimeout(clickTimeoutRef.current);
-    clickKeyRef.current = key;
     singleClickCountRef.current += 1;
     if (singleClickCountRef.current >= 3) {
       showDesktopTooltip(key, e.clientX, e.clientY);
     }
-    clickTimeoutRef.current = window.setTimeout(() => {
-      if (activeId === key) {
-        setActiveId(null);
-        setActiveFile(null);
-        return;
-      }
-      setActiveId(key);
 
-      let command: string | null = null;
-      let content: string | null = null;
+    // Single click — cat the file immediately, no debounce delay.
+    if (activeId === key) {
+      setActiveId(null);
+      setActiveFile(null);
+      return;
+    }
+    setActiveId(key);
 
-      if (type === "work") {
-        const item = currentWork.find((w) => w.company === id);
-        if (item) {
-          command = `cat ${item.slug}.md`;
-          content = allFiles[`${item.slug}.md`] ?? null;
-        }
-      } else if (type === "hackathon") {
-        const item = hackathons.find((h) => h.name === id);
-        if (item) {
-          command = `cat projects/${item.slug}.md`;
-          content = allFiles[`projects/${item.slug}.md`] ?? null;
-        }
-      } else if (type === "post") {
-        const post = posts.find((p) => p.slug === id);
-        if (post) {
-          command = `cat blog/${post.slug}.md`;
-          content = allFiles[`blog/${post.slug}.md`] ?? null;
-        }
-      }
+    let command: string | null = null;
+    let content: string | null = null;
 
-      if (command && content) {
-        setActiveFile({ command, content });
-        if (!terminalOpen) setTerminalOpen(true);
+    if (type === "work") {
+      const item = currentWork.find((w) => w.company === id);
+      if (item) {
+        command = `cat ${item.slug}.md`;
+        content = allFiles[`${item.slug}.md`] ?? null;
       }
-    }, DESKTOP_CLICK_DELAY_MS);
+    } else if (type === "hackathon") {
+      const item = hackathons.find((h) => h.name === id);
+      if (item) {
+        command = `cat projects/${item.slug}.md`;
+        content = allFiles[`projects/${item.slug}.md`] ?? null;
+      }
+    } else if (type === "post") {
+      const post = posts.find((p) => p.slug === id);
+      if (post) {
+        command = `cat blog/${post.slug}.md`;
+        content = allFiles[`blog/${post.slug}.md`] ?? null;
+      }
+    }
+
+    if (command && content) {
+      setActiveFile({ command, content });
+      if (!terminalOpen) setTerminalOpen(true);
+    }
   }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen, router, clearDesktopTooltip, showDesktopTooltip]);
 
   const toggleMobile = useCallback((key: string) => {
@@ -633,27 +698,155 @@ export function InteractiveLayout({
     card.style.setProperty("--gloss-opacity", "0");
   }, []);
 
-  const getTerminalTop = useCallback(() => {
-    const wrapper = terminalWrapperRef.current;
-    if (wrapper) return wrapper.getBoundingClientRect().top;
-    return window.innerHeight * 0.1;
+  // Distance from the Writing heading's current viewport position down to
+  // the desired top — i.e. the wrapper's effective padding-top. Captured
+  // at the moment the user triggers expand/collapse so the transform
+  // animation knows how far to slide. We read the actual computed
+  // padding-top via getComputedStyle so the math stays correct across
+  // responsive breakpoints (py-16 vs sm:py-24) without hard-coding values.
+  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
+  const computeDesiredTop = useCallback(() => {
+    const wrap = contentWrapperRef.current;
+    if (!wrap) return window.innerHeight * 0.1;
+    const pt = parseFloat(getComputedStyle(wrap).paddingTop || "0");
+    return pt > 0 ? pt : window.innerHeight * 0.1;
   }, []);
+  const computeWritingTranslateDistance = useCallback(() => {
+    const heading = writingSectionRef.current;
+    if (!heading) return 0;
+    return Math.max(0, heading.getBoundingClientRect().top - computeDesiredTop());
+  }, [computeDesiredTop]);
 
-  const scrollToWriting = useCallback((behavior: ScrollBehavior = "smooth") => {
-    const heading = writingHeadingRef.current;
-    if (!heading) return;
-    const desiredTop = getTerminalTop();
-    const currentTop = heading.getBoundingClientRect().top;
-    const targetY = window.scrollY + currentTop - desiredTop;
-    window.scrollTo({ top: Math.max(0, targetY), behavior });
-  }, [getTerminalTop]);
+  // Sequence the expand transition. Uses a CSS transform on the column
+  // (GPU-composited) instead of window.scrollTo so each animation frame is
+  // a compositor-only repaint — meaningfully smoother on mobile.
+  //
+  //   1. Apply transform: translateY(-target) with a CSS transition.
+  //      Browser animates the column up over ANIMATION_DURATION_MS.
+  //   2. After the animation completes, atomically swap to the
+  //      "home unmounted, transform: none" state. The pre-swap visual
+  //      position (writing pinned at the wrapper's padding-top by the
+  //      transform) is identical to the post-swap natural position
+  //      (writing's natural top is the wrapper's padding-top), so the
+  //      swap is invisible.
+  const expandToBlogs = useCallback(() => {
+    if (animTimerRef.current) {
+      window.clearTimeout(animTimerRef.current);
+      animTimerRef.current = null;
+    }
+    // Defensively clear any stale pending-collapse flag so it can't leak
+    // into a future render's useLayoutEffect (e.g. if the previous
+    // collapseToHome was interrupted before the layout-effect ran).
+    pendingCollapseRef.current = false;
+    const target = computeWritingTranslateDistance();
+    // Two-step apply so the CSS transition fires reliably:
+    //   render 1 — turn the transition on while transform is still 0,
+    //   render 2 — flip transform to -target so the browser animates between
+    //              the two values rather than landing on -target instantly.
+    setBlogsExpanded(true);
+    setHomeCollapsed(false);
+    setExpanding(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setTranslateY(target));
+    });
+    animTimerRef.current = window.setTimeout(() => {
+      // Atomic swap at the end of the animation: drop transform AND set
+      // display:none on the home content in the same React render. React 18+
+      // batches setState calls in setTimeout callbacks so this is a single
+      // paint with no flash.
+      setExpanding(false);
+      setTranslateY(0);
+      setHomeCollapsed(true);
+      animTimerRef.current = null;
+    }, ANIMATION_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+  }, [computeWritingTranslateDistance]);
 
-  const handleCollapsibleAnimEnd = useCallback(() => {
-    const behavior = pendingScrollRef.current;
-    if (!behavior) return;
-    pendingScrollRef.current = null;
-    scrollToWriting(behavior);
-  }, [scrollToWriting]);
+  // Sequence the collapse transition (also GPU-composited via transform).
+  // Two paths depending on whether home is currently mounted:
+  //
+  //   Steady-state collapse (homeCollapsed=true, the normal case):
+  //     1. Re-mount home content (setHomeCollapsed(false)).
+  //     2. After the React commit, useLayoutEffect measures the freshly-
+  //        laid-out writing position and applies transform: translateY(-X)
+  //        directly via the column ref BEFORE the browser paints. This
+  //        keeps writing visually pinned at viewport y=desiredTop across
+  //        the remount (no flash of the home view).
+  //     3. Two rAFs later, switch transition back on and animate the
+  //        transform to 0 — the column slides down, revealing home from
+  //        above. After the animation, drop the transform.
+  //
+  //   Mid-expand collapse (homeCollapsed=false, user clicked Back-to-home
+  //   while the expand animation was still in flight):
+  //     1. Home is already mounted; the column is mid-translation.
+  //     2. Keep `expanding` true (transition still active) and set
+  //        translateY back to 0 — the existing CSS transition smoothly
+  //        reverses the column from its current animated position back
+  //        to 0.
+  //     3. After the duration elapses, clear `expanding` so the transition
+  //        rule is removed.
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const pendingCollapseRef = useRef(false);
+  const collapseToHome = useCallback(() => {
+    if (animTimerRef.current) {
+      window.clearTimeout(animTimerRef.current);
+      animTimerRef.current = null;
+    }
+    setBlogsExpanded(false);
+    if (homeCollapsed) {
+      // Steady-state path: remount home and let the layout effect drive
+      // the slide-down animation.
+      pendingCollapseRef.current = true;
+      setHomeCollapsed(false);
+      setExpanding(false);
+      setTranslateY(0);
+    } else {
+      // Mid-expand path: the column is animating up (or partway up). Keep
+      // the transition active and reverse translateY back to 0; the CSS
+      // transition will smoothly interpolate from wherever the column
+      // currently is. Opacity is tied to blogsExpanded (set to false above)
+      // so the home content fades back in concurrently.
+      setTranslateY(0);
+      animTimerRef.current = window.setTimeout(() => {
+        setExpanding(false);
+        animTimerRef.current = null;
+      }, ANIMATION_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+    }
+  }, [homeCollapsed]);
+
+  // Drives the collapse animation. Runs synchronously after collapseToHome's
+  // setState commit (which re-mounts home content) but before the browser
+  // paints — so we can measure the freshly-laid-out writing position and
+  // apply the pre-translate via direct DOM mutation, eliminating any flash
+  // of the un-translated home view. Two rAFs later we enable the transition
+  // and animate the transform back to 0; after the animation we strip the
+  // styles so the column is back to its plain layout.
+  useLayoutEffect(() => {
+    if (!pendingCollapseRef.current) return;
+    pendingCollapseRef.current = false;
+    const col = columnRef.current;
+    if (!col) return;
+    const target = computeWritingTranslateDistance();
+    if (target <= 0) return;
+    col.style.transition = "none";
+    col.style.transform = `translateY(-${target}px)`;
+    col.style.willChange = "transform";
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!columnRef.current) return;
+        columnRef.current.style.transition = `transform ${ANIMATION_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        columnRef.current.style.transform = "translateY(0)";
+      });
+    });
+    animTimerRef.current = window.setTimeout(() => {
+      const c = columnRef.current;
+      if (c) {
+        c.style.transition = "";
+        c.style.transform = "";
+        c.style.willChange = "";
+      }
+      animTimerRef.current = null;
+    }, ANIMATION_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+  }, [homeCollapsed, computeWritingTranslateDistance]);
 
   const handleViewAllClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.metaKey || e.ctrlKey) {
@@ -661,43 +854,43 @@ export function InteractiveLayout({
       return;
     }
     if (blogsExpanded) {
-      setBlogsExpanded(false);
+      collapseToHome();
+      requestTerminalAutoType(["clear && cd .. && cat welcome.md"]);
       if (window.location.pathname === "/blog") {
         window.history.pushState({ section: "home" }, "", "/");
         syncDocumentTitle();
       }
       return;
     }
-    pendingScrollRef.current = "smooth";
-    setBlogsExpanded(true);
+    expandToBlogs();
+    requestTerminalAutoType(["clear && cd blog && cat README.md"]);
     if (window.location.pathname !== "/blog") {
       window.history.pushState({ section: "blogs" }, "", "/blog");
       syncDocumentTitle();
     }
-  }, [blogsExpanded]);
+  }, [blogsExpanded, requestTerminalAutoType, expandToBlogs, collapseToHome]);
 
-  // Direct /blog navigation: scroll instantly once the first paint is done
-  const didInitialScroll = useRef(false);
-  useEffect(() => {
-    if (initialSectionIntent !== "blog" || didInitialScroll.current) return;
-    didInitialScroll.current = true;
-    // Use rAF to let Radix render the open content before we scroll
-    requestAnimationFrame(() => scrollToWriting("instant"));
-  }, [initialSectionIntent, scrollToWriting]);
-
+  // History-driven sync: a back/forward navigation between the home
+  // (`/`, `/call`, etc.) and `/blog` should run the same expand/collapse
+  // transition that clicking "View all" or "Back to home" does. We only fire
+  // the terminal reset chain when we actually transition between the two
+  // modes, so an unrelated popstate (e.g. /call → /) doesn't spuriously
+  // run `clear && cd .. && cat welcome.md`.
   useEffect(() => {
     const handlePopState = () => {
-      if (window.location.pathname === "/blog") {
-        pendingScrollRef.current = "smooth";
-        setBlogsExpanded(true);
-      } else {
-        setBlogsExpanded(false);
+      const goingToBlog = window.location.pathname === "/blog";
+      if (goingToBlog && !blogsExpanded) {
+        expandToBlogs();
+        requestTerminalAutoType(["clear && cd blog && cat README.md"]);
+      } else if (!goingToBlog && blogsExpanded) {
+        collapseToHome();
+        requestTerminalAutoType(["clear && cd .. && cat welcome.md"]);
       }
       syncDocumentTitle();
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [requestTerminalAutoType, blogsExpanded, expandToBlogs, collapseToHome]);
 
   return (
     <main
@@ -740,8 +933,14 @@ export function InteractiveLayout({
         }
       `}</style>
 
-      {/* Content column — centered on small screens, left-aligned when terminal visible on lg */}
+      {/* Content column — centered on small screens, left-aligned when
+          terminal visible on lg. Uses the same compact py padding as the
+          rest of the site so the header sits high. The post-collapse
+          writing-target lines up with this padding (computeDesiredTop reads
+          the actual padding-top), so the expand animation lands writing
+          exactly where it'll naturally sit. */}
       <div
+        ref={contentWrapperRef}
         className={`px-8 py-16 sm:py-24 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           terminalOpen && !terminalFullscreen ? "lg:max-w-[50vw]" : ""
         }`}
@@ -750,7 +949,39 @@ export function InteractiveLayout({
           pointerEvents: terminalFullscreen ? "none" : "auto",
         }}
       >
-        <div className="max-w-[480px] mx-auto transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
+        <div
+          ref={columnRef}
+          className="max-w-[480px] mx-auto"
+          style={{
+            transform: translateY ? `translateY(-${translateY}px)` : undefined,
+            transition: expanding
+              ? `transform ${ANIMATION_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
+              : "none",
+            // Hint the compositor: the browser can promote the column to its
+            // own GPU layer ahead of the animation rather than mid-animation.
+            willChange: expanding ? "transform" : undefined,
+          }}
+        >
+          {/* Home-only sections: removed from layout flow (display:none) once
+              the user has fully transitioned to the expanded /blog view.
+              `homeCollapsed` lags `blogsExpanded` so the home content is
+              still rendered while the expand animation slides the column
+              up — the user actually sees the home content scrolling off the
+              top before it gets unmounted. We also fade its opacity to 0
+              concurrent with (but on a shorter timeline than) the slide so
+              the home content visibly dissolves as it scrolls off, making
+              the eventual display:none swap invisible. Binding opacity to
+              `blogsExpanded` (rather than `expanding`) means a mid-expand
+              collapse cleanly reverses the fade as the column slides
+              back down. */}
+          <div
+            style={{
+              display: homeCollapsed ? "none" : undefined,
+              opacity: blogsExpanded ? 0 : 1,
+              transition: "opacity 200ms ease-out",
+              pointerEvents: blogsExpanded ? "none" : "auto",
+            }}
+          >
           {/* Header */}
           <header>
             <div className="flex items-start justify-between gap-4">
@@ -895,24 +1126,49 @@ export function InteractiveLayout({
           </Section>
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
+          </div>
 
-          {/* Writing */}
-          <CollapsiblePrimitive.Root open={blogsExpanded} onOpenChange={setBlogsExpanded} asChild>
-          <section>
-            <div ref={writingHeadingRef} className="flex items-center justify-between mb-2">
+          {/* Writing + footer block. On home, the footer flows naturally
+              right after the preview posts (no padding gap). On expanded,
+              the block fills the rest of the viewport so the document is
+              exactly 100vh tall (writing at the wrapper's paddingTop,
+              footer pushed to bottom-of-block via mt-auto, no overflow,
+              no jump-at-end on the View-all animation). The responsive
+              calcs match the responsive py on the wrapper:
+                py-16  → block = 100vh − 8rem  (mobile)
+                sm:py-24 → block = 100vh − 12rem (tablet+) */}
+          <div
+            className={
+              blogsExpanded
+                ? "flex flex-col min-h-[calc(100vh-8rem)] sm:min-h-[calc(100vh-12rem)]"
+                : ""
+            }
+          >
+          <section ref={writingSectionRef}>
+            <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: theme.textMuted }}>Writing</h2>
               <button
                 type="button"
                 onClick={handleViewAllClick}
-                className="text-xs transition-colors hover:opacity-70"
+                className="text-xs transition-opacity hover:opacity-70 inline-flex items-center gap-1.5"
                 style={{ color: theme.textMuted }}
               >
-                {blogsExpanded ? "Collapse" : "View all \u2192"}
+                {blogsExpanded ? (
+                  <>
+                    <ChevronUpIcon />
+                    <span>Back to home</span>
+                  </>
+                ) : (
+                  <>
+                    <span>View all</span>
+                    <ChevronDownIcon />
+                  </>
+                )}
               </button>
             </div>
-            {previewPosts.length > 0 ? (
+            {(blogsExpanded ? posts : previewPosts).length > 0 ? (
               <div>
-                {previewPosts.map((post) => {
+                {(blogsExpanded ? posts : previewPosts).map((post) => {
                   const key = `post-${post.slug}`;
                   const isMobileOpen = mobileExpanded === key;
                   return (
@@ -936,51 +1192,21 @@ export function InteractiveLayout({
                 })}
               </div>
             ) : (<p className="text-sm" style={{ color: theme.textMuted }}>Coming soon.</p>)}
-
-            {/* Expanded blog list — Radix Collapsible handles height animation */}
-            <CollapsiblePrimitive.Content
-              onAnimationEnd={handleCollapsibleAnimEnd}
-              className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up"
-            >
-              <div>
-                {posts.slice(previewPosts.length).map((post) => {
-                  const key = `post-${post.slug}`;
-                  const isMobileOpen = mobileExpanded === key;
-                  return (
-                    <div key={post.slug}>
-                      <div className="relative hidden lg:block">
-                        <button onClick={(e) => handleClick(e, "post", post.slug, `/blog/${post.slug}`)} className={`${cardClass} ghost-card flex items-baseline justify-between gap-4`} style={cardStyle}>
-                          <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
-                          <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
-                        </button>
-                      </div>
-                      <button onClick={() => toggleMobile(key)} className={`lg:hidden flex ${cardClass} ghost-card items-baseline justify-between gap-4`} style={cardStyle}>
-                        <span className="text-[15px] font-medium" style={{ color: theme.text }}>{post.title}</span>
-                        <span className="text-xs shrink-0 tabular-nums" style={{ color: theme.textMuted }}>{new Date(post.date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
-                      </button>
-                      <MobileDetail open={isMobileOpen}>
-                        <p className="text-sm leading-relaxed" style={{ color: theme.textDim }}>{post.description || post.content.slice(0, 200)}</p>
-                        <a href={`/blog/${post.slug}`} className="text-sm text-blue-500 hover:text-blue-400 mt-2 inline-block">Read more &rarr;</a>
-                      </MobileDetail>
-                    </div>
-                  );
-                })}
-
-                <BearBalloonGraphic color={theme.textMuted} isDark={theme.isDark} />
-              </div>
-            </CollapsiblePrimitive.Content>
           </section>
-          </CollapsiblePrimitive.Root>
 
-          <footer className="mt-12 pt-6 border-t" style={{ borderColor: theme.border }}>
+          <footer
+            className={`pt-6 border-t ${blogsExpanded ? "mt-auto" : "mt-12"}`}
+            style={{ borderColor: theme.border }}
+          >
             <p className="text-xs" style={{ color: theme.textMuted }}>&copy; 2026 Gabriel Keller</p>
           </footer>
+          </div>
         </div>
       </div>
 
       {/* Single terminal instance — wrapper switches between desktop/mobile layout */}
       {isDesktop ? (
-        <div ref={terminalWrapperRef} className={`fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        <div className={`fixed ease-[cubic-bezier(0.22,1,0.36,1)] ${
           !terminalOpen
             ? "transition-all duration-150 opacity-0 scale-95 pointer-events-none left-1/2 top-1/2 -translate-y-1/2 ml-4 w-[calc(50vw-5rem)] h-[80vh]"
             : terminalFullscreen
@@ -998,6 +1224,8 @@ export function InteractiveLayout({
             onMinimize={() => { setTerminalFullscreen(false); setTerminalOpen(false); }}
             onExpand={() => setTerminalFullscreen(!terminalFullscreen)}
             onThemeChange={handleThemeChange}
+            initialAutoCommands={initialAutoCommands}
+            autoTypeRequest={autoTypeRequest}
           />
         </div>
       ) : terminalOpen ? (
@@ -1014,6 +1242,8 @@ export function InteractiveLayout({
             onExpand={() => {}}
             onThemeChange={handleThemeChange}
             borderless
+            initialAutoCommands={initialAutoCommands}
+            autoTypeRequest={autoTypeRequest}
           />
         </div>
       ) : null}
@@ -1037,24 +1267,6 @@ function MobileDetail({ open, children }: { open: boolean; children: React.React
   return (
     <div className={`lg:hidden overflow-hidden transition-all duration-300 ${open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
       <div className="pb-3 pt-1">{children}</div>
-    </div>
-  );
-}
-
-function BearBalloonGraphic({ color, isDark }: { color: string; isDark: boolean }) {
-  return (
-    <div
-      className="flex flex-col items-center justify-center select-none py-12"
-    >
-      <img
-        src="/images/bear-balloon.png"
-        alt="Teddy bear watching a balloon float away"
-        width={120}
-        height={206}
-        style={{ mixBlendMode: isDark ? "screen" : "luminosity" }}
-        draggable={false}
-      />
-      <p className="text-xs mt-6" style={{ color }}>No more posts</p>
     </div>
   );
 }

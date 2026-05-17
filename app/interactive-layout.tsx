@@ -734,6 +734,10 @@ export function InteractiveLayout({
       window.clearTimeout(animTimerRef.current);
       animTimerRef.current = null;
     }
+    // Defensively clear any stale pending-collapse flag so it can't leak
+    // into a future render's useLayoutEffect (e.g. if the previous
+    // collapseToHome was interrupted before the layout-effect ran).
+    pendingCollapseRef.current = false;
     const target = computeWritingTranslateDistance();
     // Two-step apply so the CSS transition fires reliably:
     //   render 1 — turn the transition on while transform is still 0,
@@ -757,16 +761,29 @@ export function InteractiveLayout({
     }, ANIMATION_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
   }, [computeWritingTranslateDistance]);
 
-  // Sequence the collapse transition (also GPU-composited via transform):
-  //   1. Re-mount home content (setHomeCollapsed(false)).
-  //   2. Right after the React commit, in a useLayoutEffect, measure the
-  //      newly-laid-out writing position and apply transform: translateY(-X)
-  //      directly via the column ref BEFORE the browser paints. This keeps
-  //      writing visually pinned at viewport y=desiredTop across the
-  //      remount (no flash of the home view).
-  //   3. Two rAFs later, switch transition back on and animate the
-  //      transform to 0 — the column slides down, revealing home from
-  //      above. After the animation, drop the transform.
+  // Sequence the collapse transition (also GPU-composited via transform).
+  // Two paths depending on whether home is currently mounted:
+  //
+  //   Steady-state collapse (homeCollapsed=true, the normal case):
+  //     1. Re-mount home content (setHomeCollapsed(false)).
+  //     2. After the React commit, useLayoutEffect measures the freshly-
+  //        laid-out writing position and applies transform: translateY(-X)
+  //        directly via the column ref BEFORE the browser paints. This
+  //        keeps writing visually pinned at viewport y=desiredTop across
+  //        the remount (no flash of the home view).
+  //     3. Two rAFs later, switch transition back on and animate the
+  //        transform to 0 — the column slides down, revealing home from
+  //        above. After the animation, drop the transform.
+  //
+  //   Mid-expand collapse (homeCollapsed=false, user clicked Back-to-home
+  //   while the expand animation was still in flight):
+  //     1. Home is already mounted; the column is mid-translation.
+  //     2. Keep `expanding` true (transition still active) and set
+  //        translateY back to 0 — the existing CSS transition smoothly
+  //        reverses the column from its current animated position back
+  //        to 0.
+  //     3. After the duration elapses, clear `expanding` so the transition
+  //        rule is removed.
   const columnRef = useRef<HTMLDivElement | null>(null);
   const pendingCollapseRef = useRef(false);
   const collapseToHome = useCallback(() => {
@@ -774,12 +791,27 @@ export function InteractiveLayout({
       window.clearTimeout(animTimerRef.current);
       animTimerRef.current = null;
     }
-    pendingCollapseRef.current = true;
     setBlogsExpanded(false);
-    setHomeCollapsed(false);
-    setExpanding(false);
-    setTranslateY(0);
-  }, []);
+    if (homeCollapsed) {
+      // Steady-state path: remount home and let the layout effect drive
+      // the slide-down animation.
+      pendingCollapseRef.current = true;
+      setHomeCollapsed(false);
+      setExpanding(false);
+      setTranslateY(0);
+    } else {
+      // Mid-expand path: the column is animating up (or partway up). Keep
+      // the transition active and reverse translateY back to 0; the CSS
+      // transition will smoothly interpolate from wherever the column
+      // currently is. Opacity is tied to blogsExpanded (set to false above)
+      // so the home content fades back in concurrently.
+      setTranslateY(0);
+      animTimerRef.current = window.setTimeout(() => {
+        setExpanding(false);
+        animTimerRef.current = null;
+      }, ANIMATION_DURATION_MS + HOME_COLLAPSE_GRACE_MS);
+    }
+  }, [homeCollapsed]);
 
   // Drives the collapse animation. Runs synchronously after collapseToHome's
   // setState commit (which re-mounts home content) but before the browser
@@ -938,11 +970,14 @@ export function InteractiveLayout({
               top before it gets unmounted. We also fade its opacity to 0
               concurrent with (but on a shorter timeline than) the slide so
               the home content visibly dissolves as it scrolls off, making
-              the eventual display:none swap invisible. */}
+              the eventual display:none swap invisible. Binding opacity to
+              `blogsExpanded` (rather than `expanding`) means a mid-expand
+              collapse cleanly reverses the fade as the column slides
+              back down. */}
           <div
             style={{
               display: homeCollapsed ? "none" : undefined,
-              opacity: expanding ? 0 : 1,
+              opacity: blogsExpanded ? 0 : 1,
               transition: "opacity 200ms ease-out",
               pointerEvents: blogsExpanded ? "none" : "auto",
             }}

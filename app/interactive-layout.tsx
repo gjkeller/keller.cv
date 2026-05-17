@@ -933,14 +933,17 @@ export function InteractiveLayout({
           {/* Home-only sections: removed from layout flow (display:none) once
               the user has fully transitioned to the expanded /blog view.
               `homeCollapsed` lags `blogsExpanded` so the home content is
-              still rendered (and visible) while the expand animation slides
-              the column up — the user actually sees the home content
-              scrolling off the top before it gets unmounted. After the
-              swap the document shrinks to just writing+footer (scrollbar
-              then reflects only what's visible). */}
+              still rendered while the expand animation slides the column
+              up — the user actually sees the home content scrolling off the
+              top before it gets unmounted. We also fade its opacity to 0
+              concurrent with (but on a shorter timeline than) the slide so
+              the home content visibly dissolves as it scrolls off, making
+              the eventual display:none swap invisible. */}
           <div
             style={{
               display: homeCollapsed ? "none" : undefined,
+              opacity: expanding ? 0 : 1,
+              transition: "opacity 200ms ease-out",
               pointerEvents: blogsExpanded ? "none" : "auto",
             }}
           >

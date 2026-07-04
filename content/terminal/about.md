@@ -1,6 +1,6 @@
 # About Me
 
-I'm a CS student at UT Austin and incoming SWE intern at Nominal.
+I'm a CS student at UT Austin and SWE intern at Nominal.
 I started coding at 12 with Minecraft plugins and have been hooked
 ever since.
 

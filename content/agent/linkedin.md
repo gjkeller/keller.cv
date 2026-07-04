@@ -1,6 +1,6 @@
 # Gabriel Keller - LinkedIn Profile
 
-**Incoming SWE Intern @ Nominal | Co-founder of Agent Operations Lab | Cursor Campus Lead | CS @ UT Austin**
+**SWE Intern @ Nominal | Co-founder of Agent Operations Lab | Cursor Campus Lead | CS @ UT Austin**
 
 Austin, Texas, United States | linkedin.com/in/gjkeller
 
@@ -29,7 +29,7 @@ Building enterprise tooling for agentic code ownership — helping teams manage,
 Oct 2025 - Present
 New York, New York, United States · On-site
 
-Incoming Summer 2026
+Summer 2026 intern. Started on the Developer Infrastructure team building internal tooling to help engineers get more out of AI in their day-to-day work, then moved to the Hardware Intelligence team in a reorg, where I work on the reliability of the AI features that ship to customers.
 
 ### Campus Lead
 **Cursor**

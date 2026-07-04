@@ -47,7 +47,7 @@ I'm a CS student at UT Austin and SWE intern at Nominal. I started coding at 12 
 ## Current (2026)
 
 ### Nominal
-SWE intern for Summer 2026. Nominal is a Sequoia and Founders Fund-backed hardware testing and observability platform used by aerospace and hardware teams. Gabe started on the Developer Infrastructure team, building internal tooling to help engineers get more out of AI in their day-to-day work. A recent reorg moved him to the Hardware Intelligence team, where he now works on the reliability of the AI features that ship to customers.
+SWE intern for Summer 2026. Nominal is a Sequoia and Founders Fund-backed hardware testing and observability platform used by aerospace and hardware teams. Gabe started out building internal tooling to help engineers get more out of AI in their day-to-day work, and recently started working on the reliability of the AI products Nominal ships to customers.
 
 ### Agent Operations Lab
 Cofounded with Serna. Building enterprise tooling for agentic code ownership — helping teams manage, review, and govern the code that AI agents produce at scale. Left GridMatrix to go all in on this.

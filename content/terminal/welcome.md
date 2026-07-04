@@ -4,7 +4,7 @@ CS @ UT Austin
 Building agent infrastructure
 
 Currently:
-  → Incoming SWE Intern @ Nominal
+  → SWE Intern @ Nominal
   → Cofounder @ Agent Operations Lab
   → Campus Lead @ Cursor
   → VP @ Texas ACM

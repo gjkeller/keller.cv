@@ -5,7 +5,7 @@
 - Goes by Gabe
 - UT Austin CS, graduating May 2027
 - VP Texas ACM, Cursor Campus Lead, Cofounder Agent Operations Lab
-- Incoming SWE Intern at Nominal (Summer 2026). Previously: GridMatrix, Paycom (Summer 2025)
+- SWE Intern at Nominal (Summer 2026). Previously: GridMatrix, Paycom (Summer 2025)
 - Left GridMatrix to go all in on Agent Operations Lab
 - HackTX Fall 2025 1st place, HackTX Spring 2025 finalist
 - Built the Vibe Coding Purity Test (vibecodingpuritytest.com)
@@ -15,7 +15,7 @@
 
 ## Bio
 
-I'm a CS student at UT Austin and incoming SWE intern at Nominal. I started coding at 12 with Minecraft plugins and have been hooked ever since.
+I'm a CS student at UT Austin and SWE intern at Nominal. I started coding at 12 with Minecraft plugins and have been hooked ever since.
 
 ## Contact
 
@@ -47,7 +47,7 @@ I'm a CS student at UT Austin and incoming SWE intern at Nominal. I started codi
 ## Current (2026)
 
 ### Nominal
-Incoming SWE intern for Summer 2026. Nominal is a Sequoia and Founders Fund-backed hardware testing and observability platform used by aerospace and hardware teams.
+SWE intern for Summer 2026. Nominal is a Sequoia and Founders Fund-backed hardware testing and observability platform used by aerospace and hardware teams. Gabe started out building internal tooling to help engineers get more out of AI in their day-to-day work, and recently started working on the reliability of the AI products Nominal ships to customers.
 
 ### Agent Operations Lab
 Cofounded with Serna. Building enterprise tooling for agentic code ownership — helping teams manage, review, and govern the code that AI agents produce at scale. Left GridMatrix to go all in on this.

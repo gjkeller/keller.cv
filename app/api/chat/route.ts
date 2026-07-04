@@ -50,7 +50,9 @@ export async function POST(req: Request) {
     }
 
     const result = streamText({
-      model: google("gemini-2.0-flash"),
+      // gemini-2.0-flash was retired by Google on 2026-06-01. gemini-2.5-flash
+      // is the documented drop-in replacement.
+      model: google("gemini-2.5-flash"),
       system: getSystemPrompt(
         typeof timezone === "string" ? timezone : undefined,
       ),
@@ -59,6 +61,7 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(2),
       temperature: 0.6,
       maxOutputTokens: 512,
+      onError: ({ error }) => console.error("[agent] stream error:", error),
     });
 
     // Stream text to client, drive tool execution via fullStream.
@@ -68,6 +71,7 @@ export async function POST(req: Request) {
     const writer = writable.getWriter();
 
     (async () => {
+      let wroteText = false;
       try {
         let badgeSent = false;
         for await (const part of result.fullStream) {
@@ -76,11 +80,27 @@ export async function POST(req: Request) {
             badgeSent = true;
           }
           if (part.type === "text-delta") {
+            wroteText = true;
             await writer.write(encoder.encode(part.text));
+          }
+          // The model call can fail mid-stream (e.g. a retired model, quota, or
+          // a transient upstream error). The SDK surfaces this as an error part
+          // rather than throwing, so re-throw to hit the fallback below instead
+          // of closing the stream with an empty body.
+          if (part.type === "error") {
+            throw part.error;
           }
         }
       } catch (err) {
         console.error("[agent] stream error:", err);
+        // Don't leave the visitor staring at "(no response)" — say something.
+        if (!wroteText) {
+          await writer.write(
+            encoder.encode(
+              "The agent hit a snag reaching its model. Try again in a moment, or reach out directly at gabrielkeller@utexas.edu",
+            ),
+          );
+        }
       } finally {
         await writer.close();
       }

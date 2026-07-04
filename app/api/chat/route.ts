@@ -50,9 +50,10 @@ export async function POST(req: Request) {
     }
 
     const result = streamText({
-      // gemini-2.0-flash was retired by Google on 2026-06-01. gemini-2.5-flash
-      // is the documented drop-in replacement.
-      model: google("gemini-2.5-flash"),
+      // gemini-2.0-flash was retired by Google on 2026-06-01. gemini-2.5-flash-lite
+      // is the like-for-like replacement: same $0.10/$0.40 per-1M pricing as the
+      // retired model, supports tool calling, and stays on the existing GCP key.
+      model: google("gemini-2.5-flash-lite"),
       system: getSystemPrompt(
         typeof timezone === "string" ? timezone : undefined,
       ),

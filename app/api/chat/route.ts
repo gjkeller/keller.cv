@@ -50,7 +50,10 @@ export async function POST(req: Request) {
     }
 
     const result = streamText({
-      model: google("gemini-2.0-flash"),
+      // gemini-2.0-flash was retired by Google on 2026-06-01. gemini-2.5-flash-lite
+      // is the like-for-like replacement: same $0.10/$0.40 per-1M pricing as the
+      // retired model, supports tool calling, and stays on the existing GCP key.
+      model: google("gemini-2.5-flash-lite"),
       system: getSystemPrompt(
         typeof timezone === "string" ? timezone : undefined,
       ),
@@ -59,6 +62,7 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(2),
       temperature: 0.6,
       maxOutputTokens: 512,
+      onError: ({ error }) => console.error("[agent] stream error:", error),
     });
 
     // Stream text to client, drive tool execution via fullStream.
@@ -68,6 +72,7 @@ export async function POST(req: Request) {
     const writer = writable.getWriter();
 
     (async () => {
+      let wroteText = false;
       try {
         let badgeSent = false;
         for await (const part of result.fullStream) {
@@ -76,13 +81,38 @@ export async function POST(req: Request) {
             badgeSent = true;
           }
           if (part.type === "text-delta") {
+            // Only mark text as written once the write actually succeeds, so a
+            // failed write (e.g. client disconnect) still triggers the fallback.
             await writer.write(encoder.encode(part.text));
+            wroteText = true;
+          }
+          // The model call can fail mid-stream (e.g. a retired model, quota, or
+          // a transient upstream error). The SDK surfaces this as an error part
+          // rather than throwing, so re-throw to hit the fallback below instead
+          // of closing the stream with an empty body.
+          if (part.type === "error") {
+            throw part.error;
           }
         }
       } catch (err) {
         console.error("[agent] stream error:", err);
+        // Don't leave the visitor staring at "(no response)" — say something.
+        // The write can itself fail if the client has already gone away, in
+        // which case there's nothing left to tell them, so swallow it.
+        if (!wroteText) {
+          try {
+            await writer.write(
+              encoder.encode(
+                "The agent hit a snag reaching its model. Try again in a moment, or reach out directly at gabrielkeller@utexas.edu",
+              ),
+            );
+          } catch {
+            /* client disconnected — nothing to write to */
+          }
+        }
       } finally {
-        await writer.close();
+        // close() throws if the stream already errored (e.g. client aborted).
+        await writer.close().catch(() => {});
       }
     })();
 

@@ -81,8 +81,10 @@ export async function POST(req: Request) {
             badgeSent = true;
           }
           if (part.type === "text-delta") {
-            wroteText = true;
+            // Only mark text as written once the write actually succeeds, so a
+            // failed write (e.g. client disconnect) still triggers the fallback.
             await writer.write(encoder.encode(part.text));
+            wroteText = true;
           }
           // The model call can fail mid-stream (e.g. a retired model, quota, or
           // a transient upstream error). The SDK surfaces this as an error part
@@ -95,15 +97,22 @@ export async function POST(req: Request) {
       } catch (err) {
         console.error("[agent] stream error:", err);
         // Don't leave the visitor staring at "(no response)" — say something.
+        // The write can itself fail if the client has already gone away, in
+        // which case there's nothing left to tell them, so swallow it.
         if (!wroteText) {
-          await writer.write(
-            encoder.encode(
-              "The agent hit a snag reaching its model. Try again in a moment, or reach out directly at gabrielkeller@utexas.edu",
-            ),
-          );
+          try {
+            await writer.write(
+              encoder.encode(
+                "The agent hit a snag reaching its model. Try again in a moment, or reach out directly at gabrielkeller@utexas.edu",
+              ),
+            );
+          } catch {
+            /* client disconnected — nothing to write to */
+          }
         }
       } finally {
-        await writer.close();
+        // close() throws if the stream already errored (e.g. client aborted).
+        await writer.close().catch(() => {});
       }
     })();
 

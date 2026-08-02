@@ -67,3 +67,10 @@ A mock server just answers `POST /api/v1/ad` with a JSON array of one ad
 object (`adText`, `brandName`, `cta`, `url`, `impUrl`, `clickUrl`) and 200s
 the `/track/*` pixel hits. Delete `.env.development.local` to turn ads back
 off in dev.
+
+**Why the real API never fills on localhost:** Gravity's engine silently
+no-fills (204) any request whose `device.ip` is a private/loopback address —
+verified 2026-08-02: identical request body fills with a public IP and 204s
+with `::1`, even in test-ad mode. Local dev against the real API will
+therefore always see `[gravity] status=204`; use the mock server for local
+rendering work and a deployed preview for real-fill testing.

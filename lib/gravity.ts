@@ -46,9 +46,15 @@ export function requestGravityAd(
   messages: MessageObject[],
 ): Promise<GravityAdsResult> | null {
   if (!gravityAdsEnabled()) return null;
+  // Gravity's test-ad inventory is mostly consumer brands, so the SDK's
+  // default 0.2 relevancy threshold filters nearly every dev-tool
+  // conversation to a 204 no-fill. GRAVITY_RELEVANCY=0 makes test ads fill
+  // reliably on the demo deployment; leave unset in production.
+  const relevancy = Number.parseFloat(process.env.GRAVITY_RELEVANCY ?? "");
   client ??= new Gravity({
     production: process.env.GRAVITY_ADS_PRODUCTION === "1",
     timeoutMs: 3000,
+    ...(Number.isFinite(relevancy) ? { relevancy } : {}),
     // Optional endpoint override — lets local dev point at a mock ad server
     ...(process.env.GRAVITY_API_URL
       ? { gravityApi: process.env.GRAVITY_API_URL }

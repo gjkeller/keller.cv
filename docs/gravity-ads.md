@@ -32,6 +32,7 @@ opts in via env vars, so the main site never serves ads.
 | `GRAVITY_ADS_ENABLED=1` | Master switch. Unset ⇒ no ad requests at all. |
 | `GRAVITY_API_KEY` | Publisher API key from [app.trygravity.ai](https://app.trygravity.ai/publisher/signup). Required. |
 | `GRAVITY_ADS_PRODUCTION=1` | Real ads + billing. Unset ⇒ Gravity test ads. |
+| `GRAVITY_RELEVANCY` | Optional relevancy threshold override (0–1). Gravity's test inventory is consumer brands, so the SDK's default 0.2 filters most dev conversations to a 204 no-fill — set `0` on the demo deployment for reliable test-ad fill. |
 | `GRAVITY_API_URL` | Optional endpoint override (local mock server in dev). |
 
 ## The ads deployment

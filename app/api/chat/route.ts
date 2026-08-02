@@ -1,6 +1,7 @@
 import { streamText, stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
 import { getSystemPrompt, checkRateLimit, getAgentTools } from "@/lib/agent";
+import { requestGravityAd, GRAVITY_AD_MARKER } from "@/lib/gravity";
 
 export const maxDuration = 30;
 
@@ -29,7 +30,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { messages, timezone } = await req.json();
+    const body = await req.json();
+    const { messages, timezone, greeting } = body;
 
     // Validate messages
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -48,6 +50,16 @@ export async function POST(req: Request) {
         msg.content = msg.content.slice(0, 1000);
       }
     }
+
+    // Ad request runs in parallel with the model call (Gravity's intended
+    // pattern) so it adds zero user-perceived latency. Null when ads are
+    // disabled (main deployment) or for the auto-greeting. Never throws.
+    const adPromise = greeting
+      ? null
+      : requestGravityAd(
+          { body, headers: Object.fromEntries(req.headers) },
+          trimmed,
+        );
 
     const result = streamText({
       // gemini-2.0-flash was retired by Google on 2026-06-01. gemini-2.5-flash-lite
@@ -92,6 +104,23 @@ export async function POST(req: Request) {
           // of closing the stream with an empty body.
           if (part.type === "error") {
             throw part.error;
+          }
+        }
+
+        // Model text is done — append the ad (if any) as a marker-delimited
+        // JSON tail the terminal splits back out. By now the parallel ad
+        // request has almost always resolved (3s timeout vs. a full LLM
+        // stream), so this await is ~free.
+        if (adPromise && wroteText) {
+          const adResult = await adPromise;
+          console.log(
+            `[gravity] status=${adResult.status} elapsed=${adResult.elapsed}ms ads=${adResult.ads?.length ?? 0}${adResult.error ? ` error=${adResult.error}` : ""}`,
+          );
+          const ad = adResult.ads?.[0];
+          if (ad) {
+            await writer.write(
+              encoder.encode(`\n${GRAVITY_AD_MARKER}${JSON.stringify(ad)}`),
+            );
           }
         }
       } catch (err) {

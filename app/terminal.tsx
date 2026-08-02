@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { gravityContext } from "@gravity-ai/api";
+import type { GravityContext } from "@gravity-ai/api";
+import type { AdResponse } from "@gravity-ai/react";
 import type { Theme } from "@/lib/themes";
 import { THEME_NAMES } from "@/lib/themes";
+import { GRAVITY_AD_MARKER } from "@/lib/gravity-marker";
+import { TerminalAd } from "@/components/terminal-ad";
 import { renderMarkdown, type MdStyles } from "@/lib/render-md";
 
 /* ── Types ── */
@@ -88,6 +93,49 @@ function buildFileSystem(
   return { fs, dirs, urls };
 }
 
+/* ── Gravity ads (client side) ──────────────────────────────────────── */
+
+/**
+ * The chat stream is plain text, optionally followed by
+ * GRAVITY_AD_MARKER + ad JSON appended by the route once the model text is
+ * done. Split them apart; malformed tails degrade to text-only.
+ */
+function splitGravityAd(full: string): { text: string; ad: AdResponse | null } {
+  const idx = full.indexOf(GRAVITY_AD_MARKER);
+  if (idx === -1) return { text: full, ad: null };
+  const text = full.slice(0, idx).replace(/\n$/, "");
+  try {
+    const ad = JSON.parse(full.slice(idx + GRAVITY_AD_MARKER.length));
+    return { text, ad };
+  } catch {
+    return { text, ad: null };
+  }
+}
+
+/**
+ * Anonymous visitor/session ids + device signals for Gravity's contextual
+ * targeting and frequency capping. No accounts on this site, so both ids are
+ * random UUIDs — visitor id persists across visits, session id per tab.
+ * Returns undefined on any failure; ads then just lose signal quality.
+ */
+function buildGravityContext(): GravityContext | undefined {
+  try {
+    let uid = window.localStorage.getItem("gr-visitor-id");
+    if (!uid) {
+      uid = crypto.randomUUID();
+      window.localStorage.setItem("gr-visitor-id", uid);
+    }
+    let sid = window.sessionStorage.getItem("gr-session-id");
+    if (!sid) {
+      sid = crypto.randomUUID();
+      window.sessionStorage.setItem("gr-session-id", sid);
+    }
+    return gravityContext({ sessionId: sid, user: { userId: uid } });
+  } catch {
+    return undefined;
+  }
+}
+
 /* ── Help & man pages ── */
 const AGENT_ALIASES = ["agent", "claude", "codex"];
 
@@ -160,7 +208,7 @@ export function Terminal({
   autoTypeRequest = null,
 }: TerminalProps) {
   const dark = theme.isDark;
-  const [history, setHistory] = useState<{ prompt: string; command: string; output: string }[]>([]);
+  const [history, setHistory] = useState<{ prompt: string; command: string; output: string; ad?: AdResponse | null }[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [dynamicFiles, setDynamicFiles] = useState<Record<string, string>>(initialFiles);
   const [dynamicUrls, setDynamicUrls] = useState<Record<string, string>>(initialUrls);
@@ -345,7 +393,11 @@ export function Terminal({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        body: JSON.stringify({
+          messages: nextMessages,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          gravity_context: buildGravityContext(),
+        }),
         signal: controller.signal,
       });
 
@@ -368,12 +420,15 @@ export function Terminal({
         const { done, value } = await reader.read();
         if (done) break;
         full += decoder.decode(value, { stream: true });
-        setStreamingOutput(full);
+        // Never render the marker-delimited ad JSON tail as text
+        setStreamingOutput(splitGravityAd(full).text);
       }
 
+      const { text, ad } = splitGravityAd(full);
+
       // Replace last entry with final output (preserve truncation notice)
-      setHistory((prev) => [...prev.slice(0, -1), { prompt, command: cmdLabel, output: truncNotice + (full || "(no response)") }]);
-      setChatMessages((prev) => [...prev, { role: "user", content: msg }, { role: "assistant", content: full }]);
+      setHistory((prev) => [...prev.slice(0, -1), { prompt, command: cmdLabel, output: truncNotice + (text || "(no response)"), ad }]);
+      setChatMessages((prev) => [...prev, { role: "user", content: msg }, { role: "assistant", content: text }]);
       setStreamingOutput("");
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -404,7 +459,8 @@ export function Terminal({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: greetMsg, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        // greeting: true opts this request out of Gravity ads server-side
+        body: JSON.stringify({ messages: greetMsg, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, greeting: true }),
         signal: controller.signal,
       });
 
@@ -1070,6 +1126,7 @@ export function Terminal({
               <span style={{ color: theme.termText }}>{entry.command}</span>
             </div>
             {entry.output && <div className="mt-1">{renderLine(entry.output)}</div>}
+            {entry.ad && <TerminalAd ad={entry.ad} theme={theme} />}
           </div>
         ))}
 

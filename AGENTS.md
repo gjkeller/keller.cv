@@ -20,5 +20,6 @@ This is a single Next.js 15 application (portfolio website with an interactive t
 - After `pnpm install`, pnpm may warn about ignored build scripts for `sharp` and `unrs-resolver`. Run `pnpm rebuild sharp unrs-resolver` if image optimization fails at runtime.
 - The AI agent (`agent` command in the terminal) requires `GOOGLE_GENERATIVE_AI_API_KEY` in `.env.local`. Without it the site works fully except the agent returns a "not configured" message.
 - The `SLACK_WEBHOOK_URL` env var is also optional (used by the agent's `notify_gabe` tool).
+- Gravity ads in the terminal agent are off by default; they require `GRAVITY_ADS_ENABLED=1` + `GRAVITY_API_KEY` and only run on the dedicated ads deployment. See `docs/gravity-ads.md`.
 - All content is file-based (markdown in `content/`, data in `lib/data.ts`). No database or migrations needed.
 - The dev server compiles on first request, so the first page load after `pnpm dev` takes a few seconds.

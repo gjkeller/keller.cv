@@ -17,6 +17,8 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.22",
     "@calcom/embed-react": "^1.5.3",
+    "@gravity-ai/api": "^1.1.8",
+    "@gravity-ai/react": "^1.1.9",
     "@hookform/resolvers": "^3.9.1",
     "@next/mdx": "^15.4.6",
     "@radix-ui/react-accordion": "^1.2.2",

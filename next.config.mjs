@@ -1,5 +1,4 @@
 import createMDX from "@next/mdx";
-import { wrapNextjsConfigWithBraintrust } from "braintrust/next";
 
 let userConfig = undefined;
 try {
@@ -56,4 +55,4 @@ const withMDX = createMDX({
   },
 });
 
-export default wrapNextjsConfigWithBraintrust(withMDX(nextConfig));
+export default withMDX(nextConfig);

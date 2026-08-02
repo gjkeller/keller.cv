@@ -20,7 +20,9 @@ export function TerminalAd({ ad, theme }: { ad: AdResponse | null; theme: Theme 
 
   if (!ad?.adText) return null;
 
-  const href = ad.clickUrl || ad.url;
+  // Gravity docs: always use clickUrl (tracks via api.trygravity.ai/track/click
+  // then 302s). Never link ad.url directly.
+  const href = ad.clickUrl;
   let host = "";
   try {
     host = ad.url ? new URL(ad.url).hostname.replace(/^www\./, "") : "";

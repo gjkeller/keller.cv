@@ -26,10 +26,12 @@ const PLACEMENT = [
   { placement: "below_response" as const, placement_id: "keller-cv-terminal" },
 ];
 
+function envFlag(name: string): boolean {
+  return process.env[name]?.trim() === "1";
+}
+
 export function gravityAdsEnabled(): boolean {
-  return (
-    process.env.GRAVITY_ADS_ENABLED === "1" && !!process.env.GRAVITY_API_KEY
-  );
+  return envFlag("GRAVITY_ADS_ENABLED") && !!process.env.GRAVITY_API_KEY?.trim();
 }
 
 // Lazy so the module is inert (and the key unread) when ads are disabled.
@@ -51,8 +53,8 @@ export function requestGravityAd(
   // conversation to a 204 no-fill. GRAVITY_RELEVANCY=0 makes test ads fill
   // reliably on the demo deployment; leave unset in production.
   const relevancy = Number.parseFloat(process.env.GRAVITY_RELEVANCY ?? "");
+  const production = envFlag("GRAVITY_ADS_PRODUCTION");
   client ??= new Gravity({
-    production: process.env.GRAVITY_ADS_PRODUCTION === "1",
     timeoutMs: 3000,
     ...(Number.isFinite(relevancy) ? { relevancy } : {}),
     // Optional endpoint override — lets local dev point at a mock ad server
@@ -60,5 +62,7 @@ export function requestGravityAd(
       ? { gravityApi: process.env.GRAVITY_API_URL }
       : {}),
   });
-  return client.getAds(req, messages, PLACEMENT);
+  // Read production per call — Vercel env values can carry trailing newlines
+  // from CLI paste, and the SDK requires production === true (not truthy).
+  return client.getAds(req, messages, PLACEMENT, { production });
 }

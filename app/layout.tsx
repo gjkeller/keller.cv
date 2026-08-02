@@ -1,6 +1,7 @@
 import type React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { GravityPixel } from "@/components/gravity-pixel";
 import { ThemeProvider } from "@/lib/theme-context";
 import "./globals.css";
 
@@ -38,6 +39,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>{children}</ThemeProvider>
+        <GravityPixel />
       </body>
     </html>
   );

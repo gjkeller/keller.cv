@@ -116,8 +116,18 @@ export async function POST(req: Request) {
         // stream), so this await is ~free.
         if (adPromise && wroteText) {
           const adResult = await adPromise;
+          const reqBody = adResult.requestBody as
+            | {
+                testAd?: boolean;
+                sessionId?: string;
+                device?: { ip?: string; ua?: string };
+                user?: { id?: string };
+              }
+            | null
+            | undefined;
+          const device = reqBody?.device;
           console.log(
-            `[gravity] status=${adResult.status} elapsed=${adResult.elapsed}ms ads=${adResult.ads?.length ?? 0}${adResult.error ? ` error=${adResult.error}` : ""}`,
+            `[gravity] status=${adResult.status} elapsed=${adResult.elapsed}ms ads=${adResult.ads?.length ?? 0} testAd=${reqBody?.testAd !== false} session=${reqBody?.sessionId ? "yes" : "no"} user=${reqBody?.user?.id ? "yes" : "no"} ua=${device?.ua ? "yes" : "no"} ip=${device?.ip ? "yes" : "no"}${adResult.error ? ` error=${adResult.error}` : ""}`,
           );
           const ad = adResult.ads?.[0];
           if (ad) {

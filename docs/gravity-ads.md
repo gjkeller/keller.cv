@@ -31,9 +31,27 @@ opts in via env vars, so the main site never serves ads.
 |---|---|
 | `GRAVITY_ADS_ENABLED=1` | Master switch. Unset ⇒ no ad requests at all. |
 | `GRAVITY_API_KEY` | Publisher API key from [app.trygravity.ai](https://app.trygravity.ai/publisher/signup). Required. |
-| `GRAVITY_ADS_PRODUCTION=1` | **Production ads** — real advertisers, real billing/revenue. Unset ⇒ **test ads** (sample brands like Durable, no charge). |
+| `GRAVITY_ADS_PRODUCTION=1` | **Production ads** — real advertisers, real billing/revenue. Unset ⇒ **test ads** (sample brands like Durable, no charge). Blocked with `publisher_not_approved` until Gravity approves the account. |
 | `GRAVITY_RELEVANCY` | Optional relevancy threshold override (0–1). Gravity's test inventory is consumer brands, so the SDK's default 0.2 filters most dev conversations to a 204 no-fill — set `0` on the demo deployment for reliable test-ad fill. |
 | `GRAVITY_API_URL` | Optional endpoint override (local mock server in dev). |
+| `NEXT_PUBLIC_GRAVITY_PIXEL_ID` | Pixel UUID from dashboard → Settings → Platform Settings. Unset ⇒ no `gr-pix.js` (main site stays clean). Required for attribution + device/geo dashboard metrics. |
+
+## Go-live checklist (test mode)
+
+| Item | Status on `ads.keller.cv` |
+|---|---|
+| API key in server env | ✅ `GRAVITY_API_KEY` (branch-scoped preview) |
+| Ads render in placement | ✅ `keller-cv-terminal` via `TerminalAd` |
+| Impressions on visibility | ✅ `useAdTracking` IntersectionObserver ≥50% → `impUrl` |
+| Clicks via `clickUrl` | ✅ link href is `ad.clickUrl` only |
+| Gravity pixel | ⏳ needs `NEXT_PUBLIC_GRAVITY_PIXEL_ID` |
+| Stable `sessionId` | ✅ `gr-session-id` in sessionStorage + `gravityContext()` |
+| Device `ua` + `ip` | ✅ client `gravity_context.device` + server IP from `x-forwarded-for` |
+| Fail-open | ✅ SDK never throws; chat streams without ad on error/204 |
+| Test mode (until approved) | ✅ `GRAVITY_ADS_PRODUCTION` unset + `GRAVITY_RELEVANCY=0` |
+
+Vercel function logs print a one-liner per ad request:
+`[gravity] status=… testAd=… session=yes/no user=… ua=… ip=…`
 
 ## The ads deployment
 

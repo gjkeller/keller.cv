@@ -1,7 +1,10 @@
-import { streamText, stepCountIs } from "ai";
+import { stepCountIs } from "ai";
 import { google } from "@ai-sdk/google";
 import { getSystemPrompt, checkRateLimit, getAgentTools } from "@/lib/agent";
+import { getTracedStreamText } from "@/lib/braintrust";
 import { requestGravityAd, GRAVITY_AD_MARKER } from "@/lib/gravity";
+
+const streamText = getTracedStreamText();
 
 export const maxDuration = 30;
 

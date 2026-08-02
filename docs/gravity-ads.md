@@ -31,7 +31,7 @@ opts in via env vars, so the main site never serves ads.
 |---|---|
 | `GRAVITY_ADS_ENABLED=1` | Master switch. Unset ⇒ no ad requests at all. |
 | `GRAVITY_API_KEY` | Publisher API key from [app.trygravity.ai](https://app.trygravity.ai/publisher/signup). Required. |
-| `GRAVITY_ADS_PRODUCTION=1` | Real ads + billing. Unset ⇒ Gravity test ads. |
+| `GRAVITY_ADS_PRODUCTION=1` | **Production ads** — real advertisers, real billing/revenue. Unset ⇒ **test ads** (sample brands like Durable, no charge). |
 | `GRAVITY_RELEVANCY` | Optional relevancy threshold override (0–1). Gravity's test inventory is consumer brands, so the SDK's default 0.2 filters most dev conversations to a 204 no-fill — set `0` on the demo deployment for reliable test-ad fill. |
 | `GRAVITY_API_URL` | Optional endpoint override (local mock server in dev). |
 
@@ -74,3 +74,14 @@ verified 2026-08-02: identical request body fills with a public IP and 204s
 with `::1`, even in test-ad mode. Local dev against the real API will
 therefore always see `[gravity] status=204`; use the mock server for local
 rendering work and a deployed preview for real-fill testing.
+
+## Test ads vs production ads
+
+| | Test (default) | Production (`GRAVITY_ADS_PRODUCTION=1`) |
+|---|---|---|
+| **Inventory** | Gravity sample brands (Durable, etc.) | Real advertiser campaigns |
+| **Billing** | None | Impressions/clicks count toward revenue |
+| **Fill rate** | High with `GRAVITY_RELEVANCY=0` | Lower on dev/Gabe-centric chat; higher on consumer topics |
+| **Use when** | Demoing integration to Leo, dev | You're ready to monetize live traffic |
+
+To flip to production on `ads.keller.cv`: add `GRAVITY_ADS_PRODUCTION=1` in Vercel (same scope as the other `GRAVITY_*` vars), redeploy, then test with consumer-intent prompts (travel, finance, shopping). You may want to drop `GRAVITY_RELEVANCY=0` so only relevant ads show — expect more 204 no-fills on meta/Gabe questions.

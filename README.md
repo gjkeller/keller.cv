@@ -36,7 +36,7 @@ The terminal's standout feature. Type `agent` (or `claude` or `codex`) to start 
 
 **What the agent knows:**
 
-- Gabe's full bio, education (UT Austin CS '27), and contact info
+- Gabe's full bio, education (UT Austin CS), and contact info
 - Work history: Nominal, GridMatrix, Paycom, Texas ACM, Cursor, Agent Operations Lab
 - Hackathon wins with project details
 - Blog posts with excerpts

@@ -8,7 +8,7 @@ keller.cv | linkedin.com/in/gjkeller | github.com/gjkeller | gabrielkeller@utexa
 
 ## Education
 
-**The University of Texas at Austin** - 3.7 GPA | May 2027
+**The University of Texas at Austin** - 3.7 GPA | January 2027
 
 B.S. Computer Science, concentration in Systems, minors in Entrepreneurship and Computational Biology
 
@@ -25,6 +25,12 @@ B.S. Computer Science, concentration in Systems, minors in Entrepreneurship and 
 ---
 
 ## Work Experience
+
+### Nominal - Software Engineering Intern
+Summer 2026
+
+- Worked on the Hardware Intelligence team on agent harnesses and eval infrastructure at a Sequoia and Founders Fund-backed hardware testing and observability platform
+- Built internal tooling to help engineers get more out of AI day-to-day, then worked on the reliability of customer-facing AI products
 
 ### Paycom - Software Engineering Intern
 May 2025 - August 2025
@@ -84,14 +90,16 @@ January 2025 - May 2025
 
 ### Texas Association for Computing Machinery
 
-**Vice President** | April 2025 - Current
+**Advisor** | August 2026 - Current
+
+**Vice President** | April 2025 - August 2026
 
 - Raised $40,000 in funding (40% increase) for UT's largest CS org of 700 students by establishing sales acquisition/retention pipelines, a sales CRM and team wiki, and training on outreach and discovery call tactics
 
 **Vice President of Corporate Affairs, Corporate Affairs Officer** | September 2023 - April 2025
 
 ### Cursor - Campus Lead
-August 2025 - Current
+August 2025 - August 2026
 
 ### ServiceNow - Discover ServiceNow Engineering Program, 1/28
 August 2025

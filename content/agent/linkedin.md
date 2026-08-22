@@ -1,6 +1,6 @@
 # Gabriel Keller - LinkedIn Profile
 
-**SWE Intern @ Nominal | Co-founder of Agent Operations Lab | Cursor Campus Lead | CS @ UT Austin**
+**CS @ UT Austin | prev SWE Intern @ Nominal**
 
 Austin, Texas, United States | linkedin.com/in/gjkeller
 
@@ -9,8 +9,6 @@ Austin, Texas, United States | linkedin.com/in/gjkeller
 ## About
 
 I started with Minecraft plugins. Now I'm building infra for long-running multi-agent systems.
-
-I'm the cofounder of Agent Operations Lab, building enterprise tooling for agentic code ownership. I'm also a Cursor Campus Lead, growing Austin adoption and running Euphony, UT's biweekly builder meetup.
 
 If you're building durable AI tooling, want to set up an event in Austin, or just chat, reach out.
 
@@ -26,14 +24,14 @@ Building enterprise tooling for agentic code ownership — helping teams manage,
 
 ### Software Engineering Intern
 **Nominal** · Internship
-Oct 2025 - Present
+Oct 2025 - Aug 2026
 New York, New York, United States · On-site
 
-Summer 2026 intern. Started out building internal tooling to help engineers get more out of AI in their day-to-day work, and recently started working on the reliability of the AI products we ship to customers.
+Summer 2026 intern on the Hardware Intelligence team. Started out building internal tooling to help engineers get more out of AI in their day-to-day work, then worked on the reliability of the AI products we shipped to customers.
 
 ### Campus Lead
 **Cursor**
-Aug 2025 - Present
+Aug 2025 - Aug 2026
 
 In charge of community programming for Cursor at UT
 
@@ -47,10 +45,15 @@ Created a full stack client dashboard for GridMatrix's infrastructure analytics 
 ### Texas ACM
 **The University of Texas at Austin**
 
-#### Vice President
-Apr 2025 - Present
+#### Advisor
+Aug 2026 - Present
 
-Leading UT's largest CS student organization. Over my last 3 years of tenure at Texas ACM, I have:
+Advising the board of UT's largest CS student organization after three years of tenure.
+
+#### Vice President
+Apr 2025 - Aug 2026
+
+Led UT's largest CS student organization. Over my 3 years of tenure at Texas ACM, I:
 - Grown our yearly sales revenue from external partners by 2.5x ($45,000 raised and counting)
 - Increased average event attendance by 20% (50 students/event)
 - Grown overall membership by 35% (over 700 members)
@@ -66,10 +69,10 @@ Sep 2023 - Apr 2024
 ## Education
 
 ### The University of Texas at Austin
-**BS, Computer Science**
+**BS, Computer Science** · Graduating Jan 2027
 Minors in Entrepreneurship and Computational Biology
 
-Activities and societies: Texas Association for Computing Machinery (Vice President), Cursor @ UT Austin (Founder), hackathon winner and finalist
+Activities and societies: Texas Association for Computing Machinery (Vice President, now Advisor), Cursor @ UT Austin (Founder), hackathon winner and finalist
 
 ### Liberal Arts & Science Academy
 **High School**

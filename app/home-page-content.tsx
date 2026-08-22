@@ -50,7 +50,6 @@ export function HomePageContent({
   initialCallIntent?: InitialCallIntent;
 }) {
   const workItems = getWorkItems();
-  const currentWork = workItems.filter((w) => w.current);
   const hackathons = getHackathons();
   const posts = getBlogPosts();
   const terminal = getAllTerminalFiles();
@@ -69,7 +68,7 @@ export function HomePageContent({
         socialLinks={siteData.socialLinks}
         calLink15={siteData.calLink15}
         calLink30={siteData.calLink30}
-        currentWork={currentWork}
+        workItems={workItems}
         hackathons={hackathons}
         posts={posts.map((p) => ({
           slug: p.slug,

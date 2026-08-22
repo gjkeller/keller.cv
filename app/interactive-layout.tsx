@@ -34,7 +34,7 @@ interface Props {
   name: string;
   tagline: string;
   bio: string;
-  currentWork: WorkItem[];
+  workItems: WorkItem[];
   hackathons: HackathonWin[];
   posts: { slug: string; title: string; date: string; description?: string; content: string }[];
   terminalFiles: Record<string, string>;
@@ -280,7 +280,7 @@ async function applyCalUiForTheme(theme: Theme): Promise<void> {
 /* ── Main layout ── */
 export function InteractiveLayout({
   socialLinks, calLink15, calLink30, name, tagline, bio,
-  currentWork, hackathons, posts, terminalFiles, terminalUrls,
+  workItems, hackathons, posts, terminalFiles, terminalUrls,
   initialSectionIntent = "home",
   initialCallIntent = "none",
 }: Props) {
@@ -512,7 +512,7 @@ export function InteractiveLayout({
     let content: string | null = null;
 
     if (type === "work") {
-      const item = currentWork.find((w) => w.company === id);
+      const item = workItems.find((w) => w.company === id);
       if (item) {
         command = `cat ${item.slug}.md`;
         content = allFiles[`${item.slug}.md`] ?? null;
@@ -535,7 +535,7 @@ export function InteractiveLayout({
       setActiveFile({ command, content });
       if (!terminalOpen) setTerminalOpen(true);
     }
-  }, [activeId, currentWork, hackathons, posts, allFiles, terminalOpen, router, clearDesktopTooltip, showDesktopTooltip]);
+  }, [activeId, workItems, hackathons, posts, allFiles, terminalOpen, router, clearDesktopTooltip, showDesktopTooltip]);
 
   const toggleMobile = useCallback((key: string) => {
     setMobileExpanded((prev) => (prev === key ? null : key));
@@ -1059,9 +1059,9 @@ export function InteractiveLayout({
 
           <hr className="my-8" style={{ borderColor: theme.border }} />
 
-          {/* Currently */}
-          <Section title="Currently" theme={theme}>
-            {currentWork.map((item) => {
+          {/* Work */}
+          <Section title="Work" theme={theme}>
+            {workItems.map((item) => {
               const key = `work-${item.company}`;
               const isMobileOpen = mobileExpanded === key;
               return (
